@@ -12,6 +12,9 @@
 	* [Step 5. Data scaling](#step-5-data-scaling)
 	* [(Optional and advanced) Alternative step 3-5: to use SCTransform](#optional-and-advanced-alternative-step-3-5-to-use-sctransform)
 	* [Step 6. Linear dimension reduction using principal component analysis (PCA)](#step-6-linear-dimension-reduction-using-principal-component-analysis-pca)
+	* [Step 7. Non-linear dimension reduction for visualization](#step-7-non-linear-dimension-reduction-for-visualization)
+	* [Step 8. Cluster the cells](#step-8-cluster-the-cells)
+	* [Step 9. Annotate cell clusters](#step-9-annotate-cell-clusters)
 
 ## Introduction
 After getting your scRNA-seq data of your samples, analyzing them properly is the next crucial step.
@@ -70,12 +73,12 @@ Please note that there is no one-for-all filtering criteria, as the normal range
 ```R
 VlnPlot(seurat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
 ```
-<img src="images/vlnplot_QC.png" align="center" /><br/><br/>
+<img src="images/vlnplot_QC.png" align="centre" /><br/><br/>
 Or if you don't like the dots
 ```R
 VlnPlot(seurat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
 ```
-<img src="images/vlnplot_QC_nopt.png" align="center" /><br/><br/>
+<img src="images/vlnplot_QC_nopt.png" align="centre" /><br/><br/>
 
 And as one would expect, the numbers of detected genes and numbers of detected transcripts are well correlated across cells while mitochondrial transcript percentage is not.
 ```R
@@ -85,7 +88,7 @@ plot2 <- FeatureScatter(seurat, feature1 = "nCount_RNA", feature2 = "nFeature_RN
 plot1 + plot2
 ```
 <span style="font-size:0.8em">*P.S. patchwork is an R package developped to facilitate layout of plots produced by ggplot2 (Seurat uses ggplot2 to produce plots if you use the plotting functions in the Seurat package). Without patchwork, it is illegal to run ```plot1 + plot2```.*</span>
-<img src="images/scatterplot_QCmetrics.png" align="center" /><br/><br/>
+<img src="images/scatterplot_QCmetrics.png" align="centre" /><br/><br/>
 
 Therefore, we only need to set cutoffs to either the detected gene number or detected transcript number, combining with an upper threshold of mitochondrial transcript percentage, for the QC. For instance, for this data set, detected gene numbers between 500 and 5000, and mitochondrial transcript percentage lower than 5% would be quite reasonable, but it is completely fine to use different thresholds.
 ```R
@@ -117,7 +120,7 @@ plot1 <- VariableFeaturePlot(seurat)
 plot2 <- LabelPoints(plot = plot1, points = top_features, repel = TRUE)
 plot1 + plot2
 ```
-<img src="images/variablefeatures.png" align="center" /><br/><br/>
+<img src="images/variablefeatures.png" align="centre" /><br/><br/>
 
 ### Step 5. Data scaling
 Since different genes have different base expression levels and variations, their contributions to the analysis are different if no data transformation is done. This is not something we want as we don't want our analysis only represent the behaviors of highly expressed genes. Therefore, as what is usually done in any data science field, a scaling to the data is applied to the selected features.
@@ -166,7 +169,7 @@ ElbowPlot(seurat, ndims = ncol(Embeddings(seurat, "pca")))
 ```
 <span style="font-size:0.8em">*P.S. ```Embeddings``` is the function in Seurat to obtain the dimension reduction result given the name of the dimension reduction of interest. By default, the ```RunPCA``` function stores the PCA result in the embedding called 'pca', with each column being one PC. So here it tells Seurat to make the elbowplots to show the standarized variation of all the PCs that are calculated*</span>
 
-<img src="images/elbowplot.png" align="center" /><br/><br/>
+<img src="images/elbowplot.png" align="centre" /><br/><br/>
 
 As it's defined, low-rank PCs have smaller standard deviations. However, such decrease of standard deviation is not linear. It drops dramatically at the very beginning, and then slow down and soon becomes pretty flat. One would then assume that the first phase of the curve represent the 'real' signal related to cell group differences, while the second phase represent mostly fluctuation of measurement or the stochastic nature of individual cells. To that perspective, choosing the top-15 PCs is probably good and PCs ranked lower than 20 look quite unnecessary. However, even though this is a pretty good reference, it is far from perfect:
   * It is very difficult to precisely define the elbow point or turning point of the curve, as it is usually not a perfect elbow.
@@ -174,4 +177,77 @@ As it's defined, low-rank PCs have smaller standard deviations. However, such de
 
 There is another procedure implemented in Seurat called ```JackStraw``` which can also serve as another reference. However, to our experience, it is very slow because it relies on data permutations and essentially it does not provide much more information than the elbow plot. It does estimates statistical significance of each PC but similarly, a 'significant' PC doesn't mean it is informative. And when cell number increases, more and more PCs become statistically 'significant' even though their explained variation is not substantial. People interested in this method can take a look at the Seurat [vignette](https://satijalab.org/seurat/v3.1/pbmc3k_tutorial.html).
 
-Besides making the decision unbiasly, one can also check for each of the top PCs which genes are mostly contributing. This could be 
+Besides making the decision unbiasly, one can also check for each of the top PCs which genes are mostly contributing. This can be informative if one knows these genes and the biology behind. This gives opportunities to understand or guess the biological implication of each of the top PCs, so that one can pick those representing useful information. 
+```R
+PCHeatmap(seurat, dims = 1:20, cells = 500, balanced = TRUE, ncol = 4)
+```
+<img src="images/pcheatmap.png" align="centre" /><br/><br/>
+Please be aware that it is not recommended to choose ONLY PCs represented by the "interesting" genes. There is a huge chance one misses interesting but unexpected phenomena by doing that.
+
+In this example, we would use the top-20 PCs for the following analysis. Again, it is absolutely fine to use more the fewer PCs, and in practice this sometimes needs some iteration to make the final decision. Meanwhile, for most of the data, a PC number ranging from 10 to 50 would be reasonable and in many cases it won't affect the conclusion very much.
+
+### Step 7. Non-linear dimension reduction for visualization
+A linear dimension reduction has both pros and cons. The good side is that every PC is a linear combination of gene expression so interpretation of PCs are straightforward. Also the data is compressed but not disorted, therefore information in the data is largely remained. The bad side, on the other hand, is that one usually needs more than 10 PCs to cover most of the information. This is fine for most of the analysis, but not for visualization where it is impossible to go over three dimensions for ordinary persons.
+
+To overcome this issue, non-linear dimension reductions is introduced. The most commonly used non-linear dimension reduction methods in scRNA-seq data analysis are t-distributed Stochastic Neighbor Embedding (t-SNE) and Uniform Manifold Approximation and Projection (UMAP). Both methods try to place every sample in a low-dimensional space (2D/3D), so that distances or neighborhood relationships between different samples (here cells) in the original space are largely retained in the low-dimensional space. The detailed mathematically descriptions of the two methods are out of the scope of this tutorial, but for those who are interested in, you may check this [video](https://www.youtube.com/watch?v=RJVL80Gg3lA&list=UUtXKDgv1AVoG88PLl8nGXmw) for tSNE, and this [blog](https://towardsdatascience.com/how-exactly-umap-works-13e3040e1668) of Nikolay Oskolkov for UMAP. There are also more methods to create other low-dimensional embeddings for visualization, including but not limiting to [SPRING](https://kleintools.hms.harvard.edu/tools/spring.html), [PHATE](https://phate.readthedocs.io/en/stable/). Now let's focus on tSNE and UMAP which Seurat has included. The top PCs in the PCA analysis are used as the input to create a tSNE and UMAP embedding of the data.
+```R
+seurat <- RunTSNE(seurat, dims = 1:20)
+seurat <- RunUMAP(seurat, dims = 1:20)
+```
+<span style="font-size:0.8em">*P.S. technically one can directly use the scaled expression of highly variable genes for these. It is however not recommended, as it is much slower and probably more noisy.*</span>
+
+The results can be then visualized:
+```R
+plot1 <- TSNEPlot(seurat)
+plot2 <- UMAPPlot(seurat)
+plot1 + plot2
+```
+<img src="images/tsne_umap_nogroup.png" align="centre" /><br/><br/>
+It is a hot topic whether tSNE or UMAP is superior to the other (for instance, this [blog](https://towardsdatascience.com/tsne-vs-umap-global-structure-4d8045acba17) of Nikolay Oskolkov and this [paper](https://www.biorxiv.org/content/10.1101/2019.12.19.877522v1) by Kobak and Linderman). To our experience, they both have their pros and cons and neither always work better than the other one. TSNE provides great visualization when cells form distinct cell groups, while UMAP perserves trajectory-like structure better when data contains 'continuum', e.g. the continuous cell state change during development and differentiation. It is therefore good to try both, and choose the one works better for your data.
+
+Once the tSNE or UMAP embedding is created, one can start to check whether certain cell types or cell states exist in the data, by doing feature plots of some known canonical markers of the cell types of interest.
+```R
+plot1 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "tsne")
+plot2 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "umap")
+plot1 / plot2
+```
+<img src="images/tsne_umap_featureplots.png" align="centre" /><br/><br/>
+For people who are not familiar with those genes:
+  * MKI67: a marker of G2M phase of cell cycle
+  * NES: a neural progenitor marker
+  * DCX: a pan-neuron marker
+  * FOXG1: a telencephalon marker
+  * DLX2: a ventral telencephalon marker
+  * EMX1: a dorsal telencephalon (cortex) marker
+  * OTX2: a diencephalon and midbrain inhibitory neuron marker
+  * LHX9: a diencephalon and midbrain excitatory neuron marker
+  * TFAP2A: a midbrain-hindbrain boundary and hindbrain marker
+
+So now we have some idea about what kinds of cells exist in this data.
+
+### Step 8. Cluster the cells
+Doing feature plot of markers is usually a good way to start with when exploring scRNA-seq data. However, to more comprehensively understand the underlying heterogeneity in the data, it is necessary to identify cell groups with an unbiased manner. This is what clustering does. In principle, one can apply any clustering methods, including those widely used in bulk RNA-seq data analysis such as hierarchical clustering and k-means, to the scRNA-seq data. However, in practice, this is very difficult, as the sample size in scRNA-seq data is too much larger (one 10x experiment usually gives several thousands of cells). It would be extremely slow to use these methods. In addition, due to the intrinsic sparseness of scRNA-seq data, even if data is denoised by dimension reduction like PCA, differences between different cells are not as well quantitative as those of bulk RNA-seq data. Therefore, the more commonly used clustering methods in scRNA-seq data analysis is graph-based community identification algorithm. Here, graph is the mathematical concept, where there is a set of objects, and some pairs of these objects are related with each other; or in a simplified way, a network of something, and here, a network of cells.
+
+First of all, a k-nearest neighbor network of cells is generated. Every cells is firstly connected to cells with the shortest distances, based on their corresponding PC values. Only cell pairs which are neighbors of each other are considered as connected. Proportion of shared neighbors between every cell pairs is then calculated and used to describe the strength of the connection between two cells. Weak connections are trimmed. This gives the resulted Shared Nearest Neighbor (SNN) network. In practice, this is very simple in Seurat.
+```R
+seurat <- FindNeighbors(seurat, dims = 1:20)
+```
+
+With the network constructed, the louvain community identification algorithm is applied to the netowkr to look for communities in the network, i.e. cell groups that cells in the same group tend to connect with each other, while connections between cells in different groups are sparse.
+```R
+seurat <- FindClusters(seurat, resolution = 1)
+```
+Here, the ```resolution``` parameter is used to control whether the major and coarsed cell groups (e.g. major cell types), or the smaller but finer cell groups are returned (e.g. cell subtypes). The commonly used resolution ranges between 0.1 and 1, and which is the best option largely depends on the aim of the analysis. Here, a high resolution parameter is used to get a finer clustering. One can run multiple times of the ```FindClusters``` function with different resolutions. The newest clustering result can be obtained by ```Idents(seurat)``` or ```seurat@active.ident```. Other clustering results are also stored, as different columns in the meta.data slot (```seurat@meta.data```)
+
+Next is to visualize the clustering result using the tSNE and UMAP embeddings that are generated before.
+```R
+plot1 <- DimPlot(seurat, reduction = "tsne", label = TRUE)
+plot2 <- DimPlot(seurat, reduction = "umap", label = TRUE)
+plot1 + plot2
+```
+<span style="font-size:0.8em">*P.S. if you don't want to see the cluster labels, set ```label = FALSE``` or remove it (by default ```label``` is set to FALSE).*</span>
+
+<img src="images/tsne_umap_cluster.png" align="centre" /><br/><br/>
+
+### Step 9. Annotate cell clusters
+

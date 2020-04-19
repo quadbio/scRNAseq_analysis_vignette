@@ -6,13 +6,10 @@ genes[,3] <- "Gene Expression"
 nfeatures <- colSums(counts>0)
 mito <- colSums(counts[grep("^MT-", genes[,2]),]) / colSums(counts)
 
-# DS1
-#idx_1 <- which(meta$Sample %in% c("H9_60d_org1","H9_67d_org1") & (meta$in_LineComp | mito > 0.05 | nfeatures < 500 | nfeatures > 4000))
-#idx_1 <- which(meta$Sample %in% c("h409B2_60d_org1","h409B2_67d_org1") & (meta$in_LineComp | mito > 0.05 | nfeatures < 500 | nfeatures > 4000))
+# DS1: organoid h409B2_60d_org1
 idx_1 <- which(meta$Sample %in% c("h409B2_60d_org1") & (meta$in_LineComp | mito > 0.05 | nfeatures < 500 | nfeatures > 4000))
 counts_1 <- counts[,idx_1]
 barcodes <- meta$Barcode[idx_1]
-#barcodes[meta$Sample[idx_1]=="h409B2_67d_org1"] <- gsub("\\-1","-2",barcodes[meta$Sample[idx_1]=="h409B2_67d_org1"])
 
 ## prepare data
 writeMM(counts_1, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS1/matrix.mtx")
@@ -38,10 +35,14 @@ plot1 + plot2
 dev.off()
 
 seurat <- subset(seurat, subset = nFeature_RNA > 500 & nFeature_RNA < 5000 & percent.mt < 5)
-seurat <- NormalizeData(seurat) %>% FindVariableFeatures(nfeatures = 3000) %>% ScaleData() %>% RunPCA(npcs = 50) %>% RunUMAP(dims = 1:20)
-#seurat$sample <- factor(sapply(strsplit(colnames(seurat), "-"), "[", 2))
-#UMAPPlot(seurat, group.by="sample")
-FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3)
+seurat <- NormalizeData(seurat) %>% FindVariableFeatures(nfeatures = 3000) %>% ScaleData() %>% RunPCA(npcs = 50) %>% RunUMAP(dims = 1:20) %>% RunTSNE(dims = 1:20)
+seurat <- FindNeighbors(seurat, dims = 1:20) %>% FindClusters(resolution = 1)
+
+png("images/tsne_umap_featureplots.png", height=1200, width=800)
+plot1 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "tsne")
+plot2 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "umap")
+plot1 / plot2
+dev.off()
 
 png("images/variablefeatures.png", height=300, width=1000)
 top_features <- head(VariableFeatures(seurat), 20)
@@ -52,5 +53,21 @@ dev.off()
 
 png("images/elbowplot.png", height=300, width=500)
 ElbowPlot(seurat, ndims = ncol(Embeddings(seurat, "pca")))
+dev.off()
+
+png("images/pcheatmap.png", height=30, width=30, unit="cm", res=300)
+PCHeatmap(seurat, dims = 1:20, cells = 500, nfeatures = 30, balanced = TRUE, ncol = 3, raster=F)
+dev.off()
+
+png("images/tsne_umap_nogroup.png", height=300, width=800)
+plot1 <- TSNEPlot(seurat)
+plot2 <- UMAPPlot(seurat)
+plot1 + plot2
+dev.off()
+
+png("images/tsne_umap_cluster.png", height=450, width=1000)
+plot1 <- DimPlot(seurat, reduction = "tsne", label = TRUE)
+plot2 <- DimPlot(seurat, reduction = "umap", label = TRUE)
+plot1 + plot2
 dev.off()
 

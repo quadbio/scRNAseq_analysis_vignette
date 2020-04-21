@@ -19,6 +19,15 @@
 	* [Step 11. Save the result](#step-11-save-the-result)
 	* [What else?](#what-else)
   * [Now starts Part 2: when you need to jointly analyze multiple scRNA-seq data sets](#now-starts-part-2-when-you-need-to-jointly-analyze-multiple-scRNA-seq-data-sets)
+    * [Step 0. Load data](#step-0-load-data)
+	* [Step 1. Merge the two data sets](#step-1-merge-the-two-data-sets)
+	* [Step 2-1. Data integration using Seurat](#step-2-1-data-integration-using-seurat)
+	* [Step 2-2. Data integration using Harmony](#step-2-2-data-integration-using-harmony)
+	* [Step 2-3. Data integration using LIGER](#step-2-3-data-integration-using-liger)
+	* [Step 2-4. Data integration using RSS to BrainSpan](#step-2-4-data-integration-using-rss-to-brainspan)
+	* [Step 2-5. Data integration using CSS](#step-2-5-data-integration-using-css)
+	* [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
+
 
 ## Introduction
 After getting your scRNA-seq data of your samples, analyzing them properly is the next crucial step.
@@ -100,6 +109,9 @@ Therefore, we only need to set cutoffs to either the detected gene number or det
 ```R
 seurat <- subset(seurat, subset = nFeature_RNA > 500 & nFeature_RNA < 5000 & percent.mt < 5)
 ```
+
+It is worth to mention that sometimes more QC may need to be applied. One putative issue is again doublets. As the amount of captured RNAs vary a lot in different cells, doublets don't always show higher number of detected genes or transcripts. There are several tools available now, which is designed to predict whether a 'cell' is indeed one singlet or actually doublet. [DoubletFinder](https://github.com/chris-mcginnis-ucsf/DoubletFinder), for instance, does doublet prediction by firstly construct artificial doublets by randomly averaging cells in the data, and then for each cell, test whether it is more similar to the artificially doublets or not to make the decision whether a cell is likely to be a doublet. Similarly, mitochondrial transcript percentage may not be sufficient to filter out stressed or unhealthy cells. Sometimes one would need to do extra filtering, e.g. based on [the machine learning based prediction](https://www.nature.com/articles/s41586-019-1654-9#Sec2).
+
 
 ### Step 3. Normalization
 Similar to bulk RNA-seq, the amount of captured RNA in each cell is different, therefore a direct comparison of the captured transcript number of each gene across different cells is definitely not the right way to do. A normalization step, aiming to make gene expression levels of different cells comparable, is therefore necessary. The most commonly used normalization in scRNA-seq data analysis is very similar to the concept of TPM (Transcripts Per Million reads), to normalizes the feature expression measurements for each cell by the total expression, and then multiplies this by a scale factor (10000 by default). At the end, the resulted expression levels are log-transformed so that the resulted values can better fit normal distribution. It is worth to mention, that before doing log-transform, one pseudocount is added to every value, so that genes with zero transcript detected in a cell still present present values of zero after log-transform.
@@ -190,7 +202,7 @@ PCHeatmap(seurat, dims = 1:20, cells = 500, balanced = TRUE, ncol = 4)
 <img src="images/pcheatmap.png" align="centre" /><br/><br/>
 Please be aware that it is not recommended to choose ONLY PCs represented by the "interesting" genes. There is a huge chance one misses interesting but unexpected phenomena by doing that.
 
-In this example, we would use the top-20 PCs for the following analysis. Again, it is absolutely fine to use more the fewer PCs, and in practice this sometimes needs some iteration to make the final decision. Meanwhile, for most of the data, a PC number ranging from 10 to 50 would be reasonable and in many cases it won't affect the conclusion very much.
+In this example, we would use the top-20 PCs for the following analysis. Again, it is absolutely fine to use more or fewer PCs, and in practice this sometimes needs some iteration to make the final decision. Meanwhile, for most of the data, a PC number ranging from 10 to 50 would be reasonable and in many cases it won't affect the conclusion very much (but sometimes it will, so still be cautious).
 
 ### Step 7. Non-linear dimension reduction for visualization
 A linear dimension reduction has both pros and cons. The good side is that every PC is a linear combination of gene expression so interpretation of PCs are straightforward. Also the data is compressed but not disorted, therefore information in the data is largely remained. The bad side, on the other hand, is that one usually needs more than 10 PCs to cover most of the information. This is fine for most of the analysis, but not for visualization where it is impossible to go over three dimensions for ordinary persons.
@@ -269,13 +281,16 @@ Obviously, the first method requires some prior knowledge of the system being me
   * NEUROD6: dorsal excitatory neuron marker
   * DLX5: ganglionic eminence (GE) marker
   * ISL1: lateral ganglionic eminence (LGE) inhibitory neuron marker
-  * NKX2-1 & SOX6: medial ganglionic eminence (MGE) inhibitory neuron marker
+  * SIX3 / NKX2-1 / SOX6: medial ganglionic eminence (MGE) inhibitory neuron marker
+  * NR2F2: caudal ganglionic eminence (CGE) inhibitory neuron marker
+  * RSPO3: diencephalon marker
+  * RELN: Cajal-Retzius cell marker
   * HOXB2 & HOXB5: hindbrain marker
 
 The easiest to visualize expression of marker genes of interest across cell clusters is probably by a heatmap.
 ```R
-ct_markers <- c("MKI67","NES","DCX","FOXG1","DLX2","DLX5","ISL1","SOX6","NKX2.1","EMX1","PAX6","GLI3","EOMES","NEUROD6","OTX2","LHX9","TFAP2A","HOXB2","HOXB5")
-DoHeatmap(seurat, features = ct_markers, slot = "data") + NoLegend()
+ct_markers <- c("MKI67","NES","DCX","FOXG1","DLX2","DLX5","ISL1","SIX3","NKX2.1","SOX6","NR2F2","EMX1","PAX6","GLI3","EOMES","NEUROD6","RSPO3","OTX2","LHX9","TFAP2A","RELN","HOXB2","HOXB5")
+DoHeatmap(seurat, features = ct_markers) + NoLegend()
 ```
 <img src="images/heatmap_ctmarkers.png" align="centre" /><br/><br/>
 Next, in order to do annotation in a more unbiased way, we should firstly identify cluster markers for each of the cell cluster identified. In Seurat, this can be done using the ```FindAllMarkers``` function. What it does is for cell cluster, to do differential expression analysis (with Wilcoxon's rank sum test) between cells in the cluster and cells in other clusters.
@@ -314,15 +329,15 @@ plot1 + plot2 + plot_layout(widths = c(1, 2))
 ```
 <img src="images/featureplot_vlnplot_examples.png" align="centre" /><br/><br/>
 <img src="images/tsne_umap_cluster.png" align="centre" /><br/><br/>
-So it seems that NEUROD2 and NEUROD6 not only highly expressed in cluster 2, but also cluster 6. And if you still remember where these clusters are in the tSNE/UMAP embedding, you will find that these two clusters are next with each other, suggesting that they may represent cell types related to each other and both show strong dorsal telencephalon identity. Their separation likely represents their maturity states. Neurons in cluster 6 is probably less mature as they are connected to cluster 0, which is likely dorsal telencephalic NPCs. In addition, cluster 6 show high expression of EOMES, a dorsal telencephalic IP marker. Taken them all together, we can quite confidently say, that cluster 0, 6, and 2 all represent dorsal telencephalic cells, cluster 0 is the progenitors, cluster 6 is the intermediate progenitors and cluster 2 is the neurons.
+So it seems that NEUROD2 and NEUROD6 are not only highly expressed in cluster 2, but also in cluster 6. And if you still remember where these clusters are in the tSNE/UMAP embedding, you will find that these two clusters are next to each other, suggesting that they may represent cell types related to each other and both show strong dorsal telencephalon identity. Their separation likely represents their maturity states. Neurons in cluster 6 is probably less mature as they are connected to cluster 0, which is likely dorsal telencephalic NPCs. In addition, cluster 6 show high expression of EOMES, a dorsal telencephalic IP marker. Taken them all together, we can quite confidently say, that cluster 0, 6, and 2 all represent dorsal telencephalic cells, cluster 0 is the progenitors, cluster 6 is the intermediate progenitors and cluster 2 is the neurons.
 
 If we look at the other side of cluster 0, there is cluster 5 connected, and then it is cluster 10. Now look at the heatmap again, you will find that although they have their distinct markers and expression patterns, they all present similar signatures of dorsal telencephalic NPCs. On top of it, cells in cluster 5 and cluster 10 show high expression of cell cycle G2M phase markers. This suggests that cluster 5 and cluster 10 are also dorsal telencephalic NPCs, and their separation from cluster 0 is likely due to their difference on cell cycle phases.
 
 Interesting, all these cells in cluster 10, 5, 0, 6 and 2 form a trajectory-like structure in the UMAP. It likely reflects the differentiation and neuron maturation process. We will come back to this soon.
 
-This is how cell cluster annotation is usually done. You may feel it too subjective and too much rely on personal judgement. In that case, there are also more objective and unbiased ways to do automated or semi-automated annotation. There are tools emerging, such as [Garnett](https://cole-trapnell-lab.github.io/garnett/) developed by Cole Trapnell's lab, and [Capybara](https://github.com/morris-lab/Capybara) developed by Samantha Morris' lab. These tools share similar strategy, to firstly re-analyze existing scRNA-seq data to get standardized annotation of cells, train one or multiple prediction model using the annotated data, and then apply the models to a new data set for automated annotation. Currently, those tools have limitations. Their application is usually limited to major cell types of commonly studied organs, and their performance largely depends on data and annotation quality of the training data sets. Details of using these tools won't be discussed here, but for people who are interested, it is good to try.
+This is how cell cluster annotation is usually done. You may feel it too subjective and too much rely on personal judgement. In that case, there are also more objective and unbiased ways to do automated or semi-automated annotation. There are tools emerging, such as [Garnett](https://cole-trapnell-lab.github.io/garnett/) developed by Cole Trapnell's lab, and [Capybara](https://github.com/morris-lab/Capybara) developed by Samantha Morris' lab. These tools use similar strategy, to firstly standarize cell type annotations of existing scRNA-seq data, train one or multiple prediction model using the annotated data, and then apply the models to a new data set for the automated annotation. Currently, those tools have limitations. Their application is usually limited to major cell types of commonly studied organs, and their performance largely depends on data and annotation quality of the training data sets. Details of using these tools won't be discussed here, but for people who are interested, it is good to try.
 
-It is worth to mention that one doesn't always need to a somachine learning model on other scRNA-seq data. Caculating correlations of gene expression profiles of cells or cell clusters in the scRNA-seq data to those of bulk references can also be very informative. One example is [VoxHunt](https://github.com/quadbiolab/VoxHunt) developed by our group, which correlates expression profiles of cells or cell clusters to the in situ hybridization atlas of developing mouse brain in Allen Brain Atlas. This can be very helpful for annotating scRNA-seq data of cerebral organoid samples.
+It is worth to mention that one doesn't always need to use a complex machine learning model trained on other scRNA-seq data to assist annotation of cell clusters. Caculating correlations of gene expression profiles of cells or cell clusters in the scRNA-seq data to those of bulk references can also be very informative. One example is [VoxHunt](https://github.com/quadbiolab/VoxHunt) developed by our group, which correlates expression profiles of cells or cell clusters to the in situ hybridization atlas of developing mouse brain in Allen Brain Atlas. This can be very helpful for annotating scRNA-seq data of cerebral organoid samples.
 
 <span style="font-size:0.8em">*P.S. To do this the voxhunt package needs to be installed first. Please follow the instruction on the page and don't forget to also download the ABA ISH data, which also has a link on the page. Replace ```ABA_data``` below by the path towards the folder of the downloaded data.*</span>
 ```R
@@ -347,7 +362,7 @@ td {
 | 1 | Midbrain-hindbrain boundary neuron |
 | 2 | Dorsal telen. neuron |
 | 3 | Dien. and midbrain excitatory neuron |
-| 4 | Ventral telen. neuron |
+| 4 | MGE neuron |
 | 5 | G2M dorsal telen. NPC |
 | 6 | Dorsal telen. IP |
 | 7 | Dien. and midbrain NPC |
@@ -363,7 +378,7 @@ td {
 We can replace the cell cluster labels by the annotation, but this is optional
 ```R
 new_ident <- setNames(c("Dorsal telen. NPC","Midbrain-hindbrain boundary neuron","Dorsal telen. neuron","Dien. and midbrain excitatory neuron",
-                        "Ventral telen. neuron","G2M dorsal telen. NPC","Dorsal telen. IP","Dien. and midbrain NPC",
+                        "MGE neuron","G2M dorsal telen. NPC","Dorsal telen. IP","Dien. and midbrain NPC",
                         "Dien. and midbrain IP and excitatory early neuron","G2M Dien. and midbrain NPC","G2M dorsal telen. NPC","Dien. and midbrain inhibitory neuron",
                         "Dien. and midbrain IP and early inhibitory neuron","Ventral telen. neuron","Unknown 1","Unknown 2"),
                       levels(seurat))
@@ -424,10 +439,10 @@ FeaturePlot(seurat_dorsal, c("dpt","GLI3","EOMES","NEUROD6"), ncol=4)
 <span style="font-size:0.8em">*P.S. Here the rank of the estimated dpt, instead of the dpt itself, is used as the final pseudotime. Both options have pros and cons. In principle, the raw dpt contains not only the ordering, but also how big the difference is. However, its value range is usually dominated by some 'outliers' on both sides which are less represented by the data. Using the rank helps to restore those changes at medium dpt. Feel free to try both.*</span>
 
 <img src="images/dpt_featureplots_dorsal.png" align="centre" /><br/><br/>
-<span style="font-size:0.8em">*P.S. Unlike the example here where NPCs have smaller pseudotime, it is possible that one gets a pseudotime series starting from neuron. This is because diffusion pseudotime, as well as most of other similarity-based pseudotime analysis methods, is undirected. It estimates the gradient but doesn't know which end is the source if you don't tell it. Therefore, if you find the constructed pseudotime goes to the wrong direction, reverse it (e.g. ```seurat_dorsal$dpt <- rank(-dpt$dpt)```)*</span>
+<span style="font-size:0.8em">*P.S. Unlike the example here where NPCs have smaller pseudotime, it is possible that one gets a pseudotime series starting from neuron. This is because diffusion pseudotime, as well as most of other similarity-based pseudotime analysis methods, is undirected. It estimates the gradient but doesn't know which end is the source if you don't tell it. Therefore, if you find the constructed pseudotime goes to the wrong direction, flip it (e.g. ```seurat_dorsal$dpt <- rank(-dpt$dpt)```)*</span>
 
 
-To visualize expression changes along the constructed pseudotime, a scatter plot with fitted curve is usually a more straightforward way.
+To visualize expression changes along the constructed pseudotime, a scatter plot with fitted curve is usually a straightforward way.
 ```R
 plot1 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["GLI3",]), xlab="Dpt", ylab="Expression", main="GLI3") + geom_smooth(se = FALSE, method = "loess") + theme_bw()
 plot2 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["EOMES",]), xlab="Dpt", ylab="Expression", main="EOMES") + geom_smooth(se = FALSE, method = "loess") + theme_bw()
@@ -453,11 +468,191 @@ load("DS1/seurat_objs.rdata")
 ```
 
 ### What else?
-There are of course more one can do, but it is impossible to involve everything here. One of them is RNA velocity analysis (see this [paper](https://www.nature.com/articles/s41586-018-0414-6)). This is a very cool concept jointly proposed by Sten Linnarsson's lab and Peter Kharchenko's lab, that while the exomic transcriptome represents the current state of a cell, the intronic transcriptome represents what the cell is going to be in the new future. By introducing a transcriptional dynamic model, RNA velocity analysis predicts the directional 'flow' of cell state transition, which greatly expands the application of scRNA-seq to capture dynamics of molecular changes. Fabian Theis's lab further improved the method by introducing a better transcriptional dynamic model and implemented [scVelo](https://scvelo.readthedocs.io/), which is faster and more accurate than the original [velocyto](http://velocyto.org/), and can do more analysis including estimating the directional velocity pseudotime.
+There are of course more one can do, but it is impossible to involve everything here. One of them is RNA velocity analysis (see this [paper](https://www.nature.com/articles/s41586-018-0414-6)). This is a very cool concept jointly proposed by Sten Linnarsson's lab and Peter Kharchenko's lab, that while the exonic transcriptome represents the current state of a cell, the intronic transcriptome represents what the cell is going to be in the near future. By introducing a transcriptional dynamic model, RNA velocity analysis predicts the directional 'flow' of cell state transition, which greatly expands the application of scRNA-seq to capture dynamics of molecular changes. Fabian Theis's lab further improved the method by introducing a better transcriptional dynamic model and implemented [scVelo](https://scvelo.readthedocs.io/), which is faster and more accurate than the original [velocyto](http://velocyto.org/), and can do more analysis including estimating the directional velocity pseudotime.
 
-Branch analysis can be also interesting and informative. Particularly in many differentiation- or development-related systems, one stem cell can specify its fate into one of multiple possible options. This decision process can be in principle captured by scRNA-seq data, if the sample contains cells before fate specification and cells in all the specified fates. Branch analysis is to identify the point on the cell fate specification trajectory where cell fate specification happens, so that one can get the cell fate specification tree or network. [PAGA](https://github.com/theislab/paga) and [monocle](http://cole-trapnell-lab.github.io/monocle-release/) are among the most widely used tools for this purpose. Another related analysis is to estimate fate bias in multipotent progenitors. [FateID](https://github.com/dgrun/FateID) developed by Dominic Grün's lab is a tool for such an analysis.
+Branching point analysis can be also interesting and informative. Particularly in many differentiation- or development-related systems, one stem cell can specify its fate into one of multiple possible options. This decision process can be in principle captured by scRNA-seq data, if the sample contains cells before fate specification and cells in all the specified fates. Branching point analysis is to identify the point on the cell fate specification trajectory where cell fate specification happens, so that one can get the cell fate specification tree or network. [PAGA](https://github.com/theislab/paga) and [monocle](http://cole-trapnell-lab.github.io/monocle-release/) are among the most widely used tools for this purpose. Another related analysis is to estimate fate bias in multipotent progenitors. [FateID](https://github.com/dgrun/FateID) developed by Dominic Gruen's lab is a tool for such an analysis.
 
 There are also some more specific and detailed statistical analysis, e.g. to identify genes with significant expression changes along the pseudotime. Many of them may not have any good tool or algorithm available. What's described in this tutorial is just the beginning. To master the analysis of scRNA-seq data, we shall all never stop learning, and never stop innovating.
 
 ## Now starts Part 2: when you need to jointly analyze multiple scRNA-seq data sets
+Nowadays, it is very rare that one would only do one scRNA-seq experiment and generate only one scRNA-seq data. The reasons are simple. First of all, current scRNA-seq technology only provides a molecular snapshot on limited measured samples at one time. To measure many samples across multiple experiments and different conditions, joint analysis of scRNA-seq data of multiple experiment on different samples is usually required. Although some experimental strategy, e.g. [cell hashing](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-018-1603-1), as well as computational demultiplexing methods such as [demuxlet](https://github.com/statgen/demuxlet) and [scSplit](https://github.com/jon-xu/scSplit) to some extend allow pooling multiple samples together for the scRNA-seq library preparation and sequencing, it is unavoidable that certain steps, e.g. tissue dissociation, would have to be done separately for diffent samples. Therefore, just like when dealing with bulk RNA-seq data, batch effect is usually a critical confounder of the result that one has to resolve.
 
+In this part of the tutorial, several scRNA-seq integration methods would be introduced. We will use DS1 which has been described in the first part of the tutorial, together with DS2 which you should have analyzed following this vignette. Please be aware that so far there is no 'best' integration method for all scenarios. It is therefore important to try different methods and compare, to at the end choose the one that works the best for every specific case.
+
+### Step 0. Load data
+Let's start with importing Seurat and load the saved Seurat object.
+```R
+library(Seurat)
+library(dplyr)
+library(patchwork)
+seurat_DS1 <- readRDS("DS1/seurat_obj_all.rds")
+seurat_DS2 <- readRDS("DS2/seurat_obj_all.rds")
+```
+
+### Step 1. Merge the two data sets
+First of all, there is some chances that batch effect is small so that no integration is necessary. Therefore, we should firstly take a look at the two data sets by simply merging them together.
+```R
+seurat <- merge(seurat_DS1, seurat_DS2) %>%
+    FindVariableFeatures(nfeatures = 3000) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 50) %>%
+    RunUMAP(dims = 1:20)
+plot1 <- DimPlot(seurat, group.by="orig.ident")
+plot2 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+plot1 + plot2 + plot_layout(widths = c(1.5, 2))
+```
+<img src="images/umap_merged_datasets.png" align="centre" /><br/><br/>
+Obviously, the two data sets separate from each other on the embedding. However, the marker expression patterns suggest that the two data sets indeed share quite many cell types. Ideally, cells of the same cell type in the two data sets should be mixed with each other. However, because of the batch effect, this is not happening. So we need to do data integration. What we hope is that after the integration, cells of the same cell type in the two data sets intermix, while cells of different cell types/states still separate.
+
+Here we will try different methods, including
+1. Seurat
+2. Harmony
+3. RSS to BrainSpan
+3. CSS
+
+### Step 2-1. Data integration using Seurat
+Seurat has its own data integration procedure implemented. In brief, it firstly applies canonical correlation analaysis (CCA) to the data sets that need to be integrated, rotating them separately so that the covariance of the two data sets is maximized. In other words, Seurat uses CCA to find the way maximizing the similarities between data sets. Next, Seurat introduces an anchoring mechanism, looking for cell anchors in the two data sets. Cell anchors are cell pairs with each cell in a different data set. The two cells are one of the nearest neighbors of each other in the CCA space, while the nearest neighbors of one cell in its own data set also tend to be neighbors of the nearest neighbors of the other cell of the cell pair. The two anchored cells are seen as corresponding cells from one data set to the other, and an integration procedure is then applied by subtracting expression of one data set by the transformation matrix calculated by comparing the anchoring cell pairs in the two data sets. People interested in its detailed methodology can read its [paper](https://www.sciencedirect.com/science/article/pii/S0092867419305598).
+
+To do integration using Seurat, one needs to firstly normalize and identify highly variable genes for each of data set to be integrated (which should have been done). If it hasn't been done, do it first:
+```R
+seurat_DS1 <- NormalizeData(seurat_DS1) %>% FindVariableFeatures(nfeatures = 3000)
+seurat_DS2 <- NormalizeData(seurat_DS2) %>% FindVariableFeatures(nfeatures = 3000)
+```
+
+Next, we identify anchors of data sets. At this step, Seurat takes a list of Seurat objects as the input. Please note that Seurat allows integration of more than two samples. One just needs to put them into a list.
+```R
+seurat_objs <- list(DS1 = seurat_DS1, DS2 = seurat_DS2)
+anchors <- FindIntegrationAnchors(object.list = seurat_objs, dims = 1:30)
+```
+<span style="font-size:0.8em">*P.S. The ```dims``` parameter determines the number of CC components to take into account, and one should try different values to fine-tune the results.*</span>
+
+Next, the identified anchor set is passed to the the ```IntegrateData``` function to do the expression level correction.
+```R
+seurat <- IntegrateData(anchors, dims = 1:30)
+```
+
+Running the ```IntegrateData``` function creates a new ```Assay``` object (by default it is called ```integrated```), where the batch-corrected expression matrix is stored. The uncorrected values are not lost, but store in the original ```Assay``` object (called ```RNA``` by default). The default assay of the resulted Seurat object is automatically set to ```integrated```, but one can switch to the other one by using e.g. ```DefaultAssay(seurat) <- "RNA"```.
+
+Next, we just take the corrected Seurat object and re-run the procedure in Part 1, except for the first two steps (normalization and highly variable gene identification) which should be skipped here.
+```R
+seurat <- ScaleData(seurat)
+seurat <- RunPCA(seurat, npcs = 50)
+seurat <- RunUMAP(seurat, dims = 1:20)
+seurat <- FindNeighbors(seurat, dims = 1:20) %>% FindClusters(resolution = 0.6)
+```
+
+Please be aware, that while the tSNE/UMAP embedding and clustering should be done with the ```integrated``` assay, the corrected values are no longer very reliable as the quantitative measure of gene expression. It is recommended that for the other analysis such as cluster marker identification and visualization, to use the uncorrected expression values instead, by setting the ```DefaultAssay``` back to ```RNA```
+```R
+DefaultAssay(seurat) <- "RNA"
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+<img src="images/umap_seurat_datasets.png" align="centre" /><br/><br/>
+It is not perfect but it does help to make the two data sets more comparable.
+
+It is worth to mention that Seurat also provides another strategy for integrative analysis, which is data transfer. It is used when there is an existed annotated reference data, and one wants to use the reference data to assist cell type/state annotation of a new query data. The major differences between data integration and data transfer include:
+1. Instead of generating a joint space using CCA when doing data integration, data transfer by default applies the same PCA transformation in the reference data to the query data set to identify anchors
+2. No expression value is corrected, and therefore no joint embedding of the two data sets is created; instead, one can project cells in the query data to the reference embedding. Besides the embedding, cell labels can also be projected so that one can 'transfer' labels in the reference atlas to the query data set for annotation.
+
+This tutorial won't cover this part as it doesn't match with the data set we have in hand. For people would like to try, it won't be difficult to follow the respective [Seurat tutorial](https://satijalab.org/seurat/v3.1/integration.html).
+
+### Step 2-2. Data integration using Harmony
+Besides Seurat, there are more data integration methods available now. [Harmony](https://github.com/immunogenomics/harmony), developed by Soumya Raychaudhurils lab, is one of them. It is also the most highlighted integration method in the [recent benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9) on scRNA-seq batch effect correction tools. In brief, Harmony uses fuzzy clustering to assign every cell to multiple clusters. For each cluster, it then calculates a correction factor for each data set to move the centroid of the cluster of this data set towards the global centroid of the cluster. Since every cell is represented as a combination of multiple clusters, a cell-specific correction factor is calculated by averaging the correction factors of clusters that the cell belongs to while weighting by the cluster assignment ratio. This process will be iterated until convergence happens or reaching the iteration limits. To get more details of the method, please refer to the [paper](https://www.nature.com/articles/s41592-019-0619-0).
+
+Harmony provides a simple API for Seurat object, which is a function called ```RunHarmony```, so it is very easy to use. It takes the merged Seurat object (the one generated at Step 1) as the input and one needs to tell the function which metadata feature to use as the batch identity. It returns a Seurat object, with a more reduction called ```harmony``` added. It is like the corrected PCA so one should then explicitly tell Seurat to use the ```harmony``` reduction for following analysis including making UMAP embedding and identifying cell clusters.
+```R
+seurat <- merge(seurat_DS1, seurat_DS2) %>%
+    FindVariableFeatures(nfeatures = 3000) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 50)
+library(harmony)
+seurat <- RunHarmony(seurat, group.by.vars = "orig.ident", dims.use = 1:20, max.iter.harmony = 50)
+seurat <- RunUMAP(seurat, reduction = "harmony", dims = 1:20)
+seurat <- FindNeighbors(seurat, reduction = "harmony", dims = 1:20) %>% FindClusters(resolution = 0.6)
+```
+<span style="font-size:0.8em">*P.S. The ```dims.use``` parameter determines which dimensions (by default, of PCA) to be used for the fuzzy clustering and to be corrected. By default it uses all the calculated dimensions. The ```max.iter.harmony``` controls the maximum number of iterations to be done. By default it is 10 but since ```Harmony``` is pretty fast, it is completely fine to increase the limit so that convergence can be ensured.*</span>
+
+We can then visualize the integration results similar to before
+```R
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+<img src="images/umap_harmony_datasets.png" align="centre" /><br/><br/>
+Not bad. Cells of the two samples are quite nicely mixed, and we can see some nice trajectories. Question marks may need to put at some of the mixed groups, particularly those of non-dorsal-telencephalic cells, whether or not they are indeed cells of the same cell type that should be mixed.
+
+### Step 2-3. Data integration using LIGER
+Together with Harmony and Seurat, [LIGAR](https://macoskolab.github.io/liger/), developed by Evan Macosko's lab, is another data integration tool that was highlighted by the benchmark paper. It adapts integrative non-negative matrix factorization to identifying shared and dataset-specific factors for joint analysis. The detailed mathematics of the method can be found in the [paper](https://www.cell.com/cell/fulltext/S0092-8674%2819%2930504-5). It is implemented as the ```liger``` package in R, and it provides a wrapper for Seurat object, which relies also on the additional package ```SeuratWrappers``` in R.
+```R
+library(liger)
+library(SeuratWrappers)
+
+seurat <- ScaleData(seurat, split.by = "orig.ident", do.center = FALSE)
+seurat <- RunOptimizeALS(seurat, k = 20, lambda = 5, split.by = "orig.ident")
+seurat <- RunQuantileAlignSNF(seurat, split.by = "orig.ident")
+seurat <- RunUMAP(seurat, dims = 1:ncol(seurat[["iNMF"]]), reduction = "iNMF")
+seurat <- FindNeighbors(seurat, reduction = "iNMF", dims = 1:ncol(Embeddings(seurat, "iNMF"))) %>% FindClusters(resolution = 0.6)
+```
+<span style="font-size:0.8em">*P.S. To install LIGER, do ```devtools::install_github('MacoskoLab/liger')```. If you have a Mac machine and there is any error happened, there are some suggestions on its page. To install ```SeuratWrappers```, do ```devtools::install_github('satijalab/seurat-wrappers')```*</span>
+
+Similar to above, we next visualize the integration results with the UMAP showing data sets, clusters and also some feature plots.
+```R
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+<img src="images/umap_liger_datasets.png" align="centre" /><br/><br/>
+The result doesn't seem to be very easy to understand.
+
+
+### Step 2-4. Data integration using RSS to BrainSpan
+Seurat, Harmony and LIGER are probably the most commonly used methods designed for generic scRNA-seq data integration, but there are also more methods and concepts available which can be applied to data integration. One of the concept is, if there is a reference data set with multiple sample, where differences among those samples contain information of the cell type heterogeneity in the samples, representing each cell by its transcriptome similarities to those reference samples rather than its transcriptome profile itself may efficiently clean up technical noise while preserving the essential information. The method derived from this concept is called [reference component analysis (RCA)](https://www.nature.com/articles/ng.3818) or [reference similarity spectrum](https://www.nature.com/articles/s41586-019-1654-9).
+
+To do this analysis, one firstly needs a good reference. For cerebral organoid samples, the BrainSpan bulk RNA-seq data set of human brains from early fetal development to adult by Allen Brain Atlas is a very good one.
+```R
+ref_brainspan <- readRDS("data/ext/brainspan_fetal.rds")
+```
+
+Next we need to calculate similarity, or normalized Pearson's correlation between every cell and samples in the reference. There is a wrapper function for this step in the [*simspec*](https://github.com/quadbiolab/simspec) package. The resulted representation is stored as one dimension reduction in the Seurat object (called ```rss``` by default). One can then use this dimension reduction for analysis including tSNE/UMAP and clustering.
+```R
+library(simspec)
+seurat <- ref_sim_spectrum(seurat, ref)
+seurat <- RunUMAP(seurat, reduction="rss", dims = 1:ncol(Embeddings(seurat, "rss")))
+seurat <- FindNeighbors(seurat, reduction = "rss", dims = 1:ncol(Embeddings(seurat, "rss"))) %>% FindClusters(resolution = 0.6)
+
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+<span style="font-size:0.8em">*P.S. If you don't have ```simspec``` package, install it via ```devtools::install_github("quadbiolab/simspec")```*</span>
+<img src="images/umap_rss_datasets.png" align="centre" /><br/><br/>
+
+We got nice trajectories and cells from the two samples seem to mix in a reasonable way. Still, you may have realized problems when comparing the clustering results and for instance LHX9 expression.
+
+Even if you like this result very much, there is a very obvious limitation of RCA/RSS, that there has to be a nice reference data set available so that one can calculate the similarities without lossing too much information. If your data set happened to have some interesting signals which are unavailable at all in the reference data, you would very likely miss it.
+
+### Step 2-5. Data integration using CSS
+At the end we would try the last data integration method in this tutorial, which is the extended version of RCA/RSS, which is [cluster similarity spectrum (CSS)](https://github.com/quadbiolab/simspec) developed by our group. Instead of using external reference data set to represent cells in the data by similarities, it firstly does cell clustering to scRNA-seq data of each sample to be integrated, and uses the average expression profiles of the resulted clusters as the reference to calculate these similarities. More detailed description of the method can be seen in this [paper](https://www.biorxiv.org/content/10.1101/2020.02.27.968560v1).
+```R
+library(simspec)
+seurat <- cluster_sim_spectrum(seurat, label_tag = "orig.ident", cluster_resolution = 0.3)
+seurat <- RunUMAP(seurat, reduction="css", dims = 1:ncol(Embeddings(seurat, "css")))
+seurat <- FindNeighbors(seurat, reduction = "css", dims = 1:ncol(Embeddings(seurat, "css"))) %>% FindClusters(resolution = 0.6)
+
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+<img src="images/umap_css_datasets.png" align="centre" /><br/><br/>
+The result doesn't seem to be worse than the others, but the trajectories look a bit odds.
+
+### Step 3. How shall we compare different data integration methods
+With different data sets integrated, we can next continue to do more following analysis. These analysis could cover any analysis mentioned in Part 1, including cell clustering, marker identification, re-annotation of cell clusters, pseudotime analysis, branching point analysis and RNA velocity analysis. More analysis can also be done, such as differential expression analysis between cells of the same cluster but from different samples/conditions.
+
+However, before going further, the decision has to be made which data integration method to be used. As you may have noticed, none of the methods seems to be perfect for the two example data sets, and this is very common when doing data integration. 

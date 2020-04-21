@@ -71,7 +71,7 @@ plot2 <- DimPlot(seurat, reduction = "umap", label = TRUE)
 plot1 + plot2
 dev.off()
 
-ct_markers <- c("MKI67","NES","DCX","FOXG1","DLX2","DLX5","ISL1","SOX6","NKX2.1","EMX1","PAX6","GLI3","EOMES","NEUROD6","OTX2","LHX9","TFAP2A","HOXB2","HOXB5")
+ct_markers <- c("MKI67","NES","DCX","FOXG1","DLX2","DLX5","ISL1","SIX3","NKX2.1","SOX6","NR2F2","EMX1","PAX6","GLI3","EOMES","NEUROD6","RSPO3","OTX2","LHX9","TFAP2A","RELN","HOXB2","HOXB5")
 png("images/heatmap_ctmarkers.png", height=400, width=800)
 DoHeatmap(seurat, features = ct_markers) + NoLegend()
 dev.off()
@@ -104,7 +104,7 @@ plot_map(vox_map)
 dev.off()
 
 new_ident <- setNames(c("Dorsal telen. NPC","Midbrain-hindbrain boundary neuron","Dorsal telen. neuron","Dien. and midbrain excitatory neuron",
-                        "Ventral telen. neuron","G2M dorsal telen. NPC","Dorsal telen. IP","Dien. and midbrain NPC",
+                        "MGE neuron","G2M dorsal telen. NPC","Dorsal telen. IP","Dien. and midbrain NPC",
                         "Dien. and midbrain IP and excitatory early neuron","G2M Dien. and midbrain NPC","G2M dorsal telen. NPC","Dien. and midbrain inhibitory neuron",
                         "Dien. and midbrain IP and early inhibitory neuron","Ventral telen. neuron","Unknown 1","Unknown 2"),
                       levels(seurat))
@@ -147,4 +147,161 @@ save(seurat, seurat_dorsal, file="../scRNAseq_analysis_vignette_seurat/DS1_seura
 saveRDS(seurat, file="../scRNAseq_analysis_vignette_seurat/DS1_seurat_obj.rds")
 saveRDS(seurat_dorsal, file="../scRNAseq_analysis_vignette_seurat/DS1_seurat_obj_dorsal.rds")
 
+
+# DS2
+idx_2 <- intersect(grep("sojd", meta$Sample), which(meta$in_LineComp | mito > 0.05 | nfeatures < 500 | nfeatures > 4000))
+counts_2 <- counts[,idx_2]
+barcodes <- meta$Barcode[idx_2]
+
+## prepare data
+writeMM(counts_2, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS2-1/matrix.mtx")
+write.table(genes, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS2-1/features.tsv", row.names=F, col.names=F, quote=F, sep="\t")
+write.table(barcodes, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS2-1/barcodes.tsv", row.names=F, col.names=F, quote=F)
+
+## run Seurat and prepare figures
+rownames(counts_2) <- make.names(genes[,2], unique=T)
+colnames(counts_2) <- barcodes
+seurat <- CreateSeuratObject(counts_2, project="DS2")
+seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^MT[-\\.]")
+VlnPlot(seurat, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
+seurat <- subset(seurat, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & percent.mt < 5)
+seurat <- NormalizeData(seurat) %>% FindVariableFeatures(nfeatures = 3000) %>% ScaleData() %>% RunPCA(npcs = 50) %>% RunUMAP(dims = 1:20) %>% RunTSNE(dims = 1:20)
+seurat <- FindNeighbors(seurat, dims = 1:20) %>% FindClusters(resolution = 1)
+seurat <- FindClusters(seurat, resolution = 0.6)
+UMAPPlot(seurat, label=T)
+FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "umap")
+FeaturePlot(seurat, c("SIX3","ISL1","NR2F2","GLI3","EOMES","NEUROD6"), ncol=3, reduction = "umap")
+
+vox_map <- voxel_map(seurat, genes_use=genes_use)
+plot_map(vox_map)
+
+saveRDS(seurat, "../scRNAseq_analysis_vignette_seurat/DS2_seurat_obj.rds")
+
+
+# DS2.2
+idx_2 <- intersect(grep("hoik", meta$Sample), which(meta$in_LineComp | mito > 0.05 | nfeatures < 500 | nfeatures > 4000))
+counts_2 <- counts[,idx_2]
+barcodes <- meta$Barcode[idx_2]
+
+## prepare data
+writeMM(counts_2, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS2-2/matrix.mtx")
+write.table(genes, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS2-2/features.tsv", row.names=F, col.names=F, quote=F, sep="\t")
+write.table(barcodes, file="/links/groups/treutlein/USERS/zhisong_he/Data/scRNAseq_analysis_vignette/data/DS2-2/barcodes.tsv", row.names=F, col.names=F, quote=F)
+
+## run Seurat and prepare figures
+rownames(counts_2) <- make.names(genes[,2], unique=T)
+colnames(counts_2) <- barcodes
+seurat <- CreateSeuratObject(counts_2, project="DS2")
+seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^MT[-\\.]")
+seurat <- subset(seurat, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & percent.mt < 5)
+seurat <- NormalizeData(seurat) %>% FindVariableFeatures(nfeatures = 3000) %>% ScaleData() %>% RunPCA(npcs = 50) %>% RunUMAP(dims = 1:20) %>% RunTSNE(dims = 1:20)
+seurat <- FindNeighbors(seurat, dims = 1:20) %>% FindClusters(resolution = 1)
+seurat <- FindClusters(seurat, resolution = 0.6)
+UMAPPlot(seurat, label=T)
+FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "umap")
+FeaturePlot(seurat, c("TTR","RSPO3","RELN","PCP4"), ncol=2, reduction = "umap")
+
+saveRDS(seurat, "../scRNAseq_analysis_vignette_seurat/DS2-2_seurat_obj.rds")
+
+
+
+# integration
+seurat_DS1 <- readRDS("../scRNAseq_analysis_vignette_seurat/DS1_seurat_obj.rds")
+seurat_DS2 <- readRDS("../scRNAseq_analysis_vignette_seurat/DS2_seurat_obj.rds")
+
+## merge
+seurat <- merge(seurat_DS1, seurat_DS2) %>%
+    FindVariableFeatures(nfeatures = 3000) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 50) %>%
+    RunUMAP(dims = 1:20)
+png("images/umap_merged_datasets.png", height=350, width=800)
+plot1 <- DimPlot(seurat, group.by="orig.ident")
+plot2 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+plot1 + plot2 + plot_layout(widths = c(1.5, 2))
+dev.off()
+
+## Seurat integration
+seurat_objs <- list(DS1 = seurat_DS1, DS2 = seurat_DS2)
+anchors <- FindIntegrationAnchors(object.list = seurat_objs, dims = 1:30)
+seurat <- IntegrateData(anchors, dims = 1:30)
+seurat <- ScaleData(seurat)
+seurat <- RunPCA(seurat, npcs = 50)
+seurat <- RunUMAP(seurat, dims = 1:20)
+seurat <- FindNeighbors(seurat, dims = 1:20) %>% FindClusters(resolution = 0.6)
+saveRDS(seurat, file="../scRNAseq_analysis_vignette_seurat/integrated_seurat_obj.rds")
+
+DefaultAssay(seurat) <- "RNA"
+png("images/umap_seurat_datasets.png", height=600, width=1000)
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+dev.off()
+
+## harmony
+library(harmony)
+seurat <- merge(seurat_DS1, seurat_DS2) %>%
+    FindVariableFeatures(nfeatures = 3000) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 50) %>%
+    RunUMAP(dims = 1:20)
+seurat <- RunHarmony(seurat, group.by.vars = "orig.ident", dims.use = 1:20, max.iter.harmony = 50)
+seurat <- RunUMAP(seurat, reduction = "harmony", dims = 1:20)
+seurat <- FindNeighbors(seurat, reduction = "harmony", dims = 1:20) %>% FindClusters(resolution = 0.6)
+saveRDS(seurat, file="../scRNAseq_analysis_vignette_seurat/harmony_seurat_obj.rds")
+
+png("images/umap_harmony_datasets.png", height=600, width=1000)
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+dev.off()
+
+## RSS
+library(simspec)
+ref <- readRDS("data/ext/brainspan_fetal.rds")
+seurat <- ref_sim_spectrum(seurat, ref)
+seurat <- RunUMAP(seurat, reduction="rss", dims = 1:ncol(Embeddings(seurat, "rss")))
+seurat <- FindNeighbors(seurat, reduction = "rss", dims = 1:ncol(Embeddings(seurat, "rss"))) %>% FindClusters(resolution = 0.6)
+saveRDS(seurat, file="../scRNAseq_analysis_vignette_seurat/rss_seurat_obj.rds")
+
+png("images/umap_rss_datasets.png", height=600, width=1000)
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+dev.off()
+
+## CSS
+seurat <- cluster_sim_spectrum(seurat, label_tag = "orig.ident", cluster_resolution = 0.3)
+seurat <- RunUMAP(seurat, reduction="css", dims = 1:ncol(Embeddings(seurat, "css")))
+seurat <- FindNeighbors(seurat, reduction = "css", dims = 1:ncol(Embeddings(seurat, "css"))) %>% FindClusters(resolution = 0.6)
+saveRDS(seurat, file="../scRNAseq_analysis_vignette_seurat/css_seurat_obj.rds")
+
+png("images/umap_css_datasets.png", height=600, width=1000)
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+dev.off()
+
+
+## LIGER
+library(liger)
+library(SeuratWrappers)
+
+seurat <- ScaleData(seurat, split.by = "orig.ident", do.center = FALSE)
+seurat <- RunOptimizeALS(seurat, k = 20, lambda = 5, split.by = "orig.ident")
+seurat <- RunQuantileAlignSNF(seurat, split.by = "orig.ident")
+seurat <- RunUMAP(seurat, dims = 1:ncol(seurat[["iNMF"]]), reduction = "iNMF")
+seurat <- FindNeighbors(seurat, reduction = "iNMF", dims = 1:ncol(Embeddings(seurat, "iNMF"))) %>% FindClusters(resolution = 0.6)
+saveRDS(seurat, file="../scRNAseq_analysis_vignette_seurat/liger_seurat_obj.rds")
+
+png("images/umap_liger_datasets.png", height=600, width=1000)
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+dev.off()
 

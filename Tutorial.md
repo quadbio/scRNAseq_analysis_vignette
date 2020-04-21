@@ -21,9 +21,9 @@
   * [Now starts Part 2: when you need to jointly analyze multiple scRNA-seq data sets](#now-starts-part-2-when-you-need-to-jointly-analyze-multiple-scRNA-seq-data-sets)
 
 ## Introduction
-After getting your scRNA-seq data of your samples, analyzing them properly is the next crucial step.
+After getting the scRNA-seq data of your samples, you will want to analyze it properly.
 
-Nowadays, there are multiple toolkits and analytic framework developed to provide facilitate scRNA-seq data analysis. These options include but not limit to [Seurat](https://satijalab.org/seurat/), developed by Rahul Satija's Lab, in R, and [scanpy](https://icb-scanpy.readthedocs-hosted.com/en/stable/), developed by Fabian Theis's Lab, in Python. Both toolkits provide functions and rich parameter sets to serve most of the routine analysis that one usually does to get scRNA-seq data analysis done. On the other hand, one should be aware that these analytic frameworks do not cover all the interesting analysis that one do when analyzing data. It is also important to get to know other tools for scRNA-seq data analysis.
+Multiple toolkits and analytic frameworks have been developed to facilitate scRNA-seq data analysis. These options include but are not limit to [Seurat](https://satijalab.org/seurat/), developed by Rahul Satija's Lab in R, and [scanpy](https://icb-scanpy.readthedocs-hosted.com/en/stable/), developed by Fabian Theis's Lab in Python. Both toolkits provide functions and rich parameter sets that serve most of the routine analysis that one usually does on scRNA-seq data. However, one should be aware that these analytic frameworks do not cover all the interesting analyses that one can do when analyzing data. It is also important to get to know other tools for scRNA-seq data analysis.
 
 But as here it is a tutorial to the starters, we will mostly introduce how to use Seurat to analyze your scRNA-seq data in R. At the end, we will also mention some other additional tools (e.g. presto, destiny, Harmony, simspec, etc.) which provide additional functionalities that you may miss if you only use Seurat.
 

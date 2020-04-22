@@ -539,6 +539,9 @@ seurat <- ScaleData(seurat)
 seurat <- RunPCA(seurat, npcs = 50)
 seurat <- RunUMAP(seurat, dims = 1:20)
 seurat <- FindNeighbors(seurat, dims = 1:20) %>% FindClusters(resolution = 0.6)
+
+# You may also want to save the object
+saveRDS(seurat, file="integrated_seurat.rds")
 ```
 
 Please be aware, that while the tSNE/UMAP embedding and clustering should be done with the ```integrated``` assay, the corrected values are no longer very reliable as the quantitative measure of gene expression. It is recommended that for the other analysis such as cluster marker identification and visualization, to use the uncorrected expression values instead, by setting the ```DefaultAssay``` back to ```RNA```
@@ -571,6 +574,9 @@ library(harmony)
 seurat <- RunHarmony(seurat, group.by.vars = "orig.ident", dims.use = 1:20, max.iter.harmony = 50)
 seurat <- RunUMAP(seurat, reduction = "harmony", dims = 1:20)
 seurat <- FindNeighbors(seurat, reduction = "harmony", dims = 1:20) %>% FindClusters(resolution = 0.6)
+
+# You may also want to save the object
+saveRDS(seurat, file="integrated_harmony.rds")
 ```
 <span style="font-size:0.8em">*P.S. The ```dims.use``` parameter determines which dimensions (by default, of PCA) to be used for the fuzzy clustering and to be corrected. By default it uses all the calculated dimensions. The ```max.iter.harmony``` controls the maximum number of iterations to be done. By default it is 10 but since ```Harmony``` is pretty fast, it is completely fine to increase the limit so that convergence can be ensured.*</span>
 
@@ -590,11 +596,16 @@ Together with Harmony and Seurat, [LIGAR](https://macoskolab.github.io/liger/), 
 library(liger)
 library(SeuratWrappers)
 
+seurat <- merge(seurat_DS1, seurat_DS2) %>%
+    FindVariableFeatures(nfeatures = 3000)
 seurat <- ScaleData(seurat, split.by = "orig.ident", do.center = FALSE)
 seurat <- RunOptimizeALS(seurat, k = 20, lambda = 5, split.by = "orig.ident")
 seurat <- RunQuantileAlignSNF(seurat, split.by = "orig.ident")
 seurat <- RunUMAP(seurat, dims = 1:ncol(seurat[["iNMF"]]), reduction = "iNMF")
 seurat <- FindNeighbors(seurat, reduction = "iNMF", dims = 1:ncol(Embeddings(seurat, "iNMF"))) %>% FindClusters(resolution = 0.6)
+
+# You may also want to save the object
+saveRDS(seurat, file="integrated_liger.rds")
 ```
 <span style="font-size:0.8em">*P.S. To install LIGER, do ```devtools::install_github('MacoskoLab/liger')```. If you have a Mac machine and there is any error happened, there are some suggestions on its page. To install ```SeuratWrappers```, do ```devtools::install_github('satijalab/seurat-wrappers')```*</span>
 
@@ -620,6 +631,7 @@ ref_brainspan <- readRDS("data/ext/brainspan_fetal.rds")
 Next we need to calculate similarity, or normalized Pearson's correlation between every cell and samples in the reference. There is a wrapper function for this step in the [*simspec*](https://github.com/quadbiolab/simspec) package. The resulted representation is stored as one dimension reduction in the Seurat object (called ```rss``` by default). One can then use this dimension reduction for analysis including tSNE/UMAP and clustering.
 ```R
 library(simspec)
+seurat <- merge(seurat_DS1, seurat_DS2)
 seurat <- ref_sim_spectrum(seurat, ref)
 seurat <- RunUMAP(seurat, reduction="rss", dims = 1:ncol(Embeddings(seurat, "rss")))
 seurat <- FindNeighbors(seurat, reduction = "rss", dims = 1:ncol(Embeddings(seurat, "rss"))) %>% FindClusters(resolution = 0.6)
@@ -640,6 +652,10 @@ Even if you like this result very much, there is a very obvious limitation of RC
 At the end we would try the last data integration method in this tutorial, which is the extended version of RCA/RSS, which is [cluster similarity spectrum (CSS)](https://github.com/quadbiolab/simspec) developed by our group. Instead of using external reference data set to represent cells in the data by similarities, it firstly does cell clustering to scRNA-seq data of each sample to be integrated, and uses the average expression profiles of the resulted clusters as the reference to calculate these similarities. More detailed description of the method can be seen in this [paper](https://www.biorxiv.org/content/10.1101/2020.02.27.968560v1).
 ```R
 library(simspec)
+seurat <- merge(seurat_DS1, seurat_DS2) %>%
+    FindVariableFeatures(nfeatures = 3000) %>%
+    ScaleData() %>%
+    RunPCA(npcs = 50)
 seurat <- cluster_sim_spectrum(seurat, label_tag = "orig.ident", cluster_resolution = 0.3)
 seurat <- RunUMAP(seurat, reduction="css", dims = 1:ncol(Embeddings(seurat, "css")))
 seurat <- FindNeighbors(seurat, reduction = "css", dims = 1:ncol(Embeddings(seurat, "css"))) %>% FindClusters(resolution = 0.6)
@@ -653,6 +669,33 @@ plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 
 The result doesn't seem to be worse than the others, but the trajectories look a bit odds.
 
 ### Step 3. How shall we compare different data integration methods
-With different data sets integrated, we can next continue to do more following analysis. These analysis could cover any analysis mentioned in Part 1, including cell clustering, marker identification, re-annotation of cell clusters, pseudotime analysis, branching point analysis and RNA velocity analysis. More analysis can also be done, such as differential expression analysis between cells of the same cluster but from different samples/conditions.
+With data sets successfully integrated, we can next continue to do more analysis, which could cover anything mentioned in Part 1, including cell clustering, marker identification, re-annotation of cell clusters, pseudotime analysis, branching point analysis and RNA velocity analysis. More analysis can also be done, such as differential expression analysis between cells of the same cluster but from different samples/conditions.
 
-However, before going further, the decision has to be made which data integration method to be used. As you may have noticed, none of the methods seems to be perfect for the two example data sets, and this is very common when doing data integration. 
+However, before going further, a decision has to be made which data integration method to be used. As you may have noticed, none of the methods seems to be perfect for the two example data sets, and this is very common when doing data integration. So how shall we make the judgement which result is better? There is no clear answer to that. Every method has its pros and cons, and your requirement is likely also different from time to time. Still, there are some general guidelines that one may consider.
+
+1. You do data integration expecting cells from different data sets mixed. Unless the data sets have no shared cell type at all, there should be partial or complete mixed of cells from different data sets;
+2. You do data integration expecting more than just mixing cells from different data sets. You only want cells of the same cell types/states mixed. The intuitive solution is then of course to check cell type marker expression in the joint embedding (e.g. tSNE/UMAP), but for each data set separately. For instance, the ```cells``` parameter in the ```FeaturePlot```function could be useful. We can take the Seurat integration result as the example here.
+```R
+seurat <- readRDS("integrated_seurat.rds")
+plot1 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot2 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, cells=colnames(seurat)[seurat$orig.ident == "DS1"], pt.size = 0.1)
+plot3 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, cells=colnames(seurat)[seurat$orig.ident == "DS2"], pt.size = 0.1)
+plot1 + plot2 + plot3
+```
+<img src="images/featureplots_seurat_integrated_datasets.png" align="centre" /><br/><br/>
+3. You want the heterogeneity structures of different data sets being preserved after integration. If you see a trajectory in one data set, you probably expect the same trajectory exists after the integration. The intuitive way is check this is of course to do some feature plots on each data set separately as well as in the joint analysis. We can take Seurat integration result again as the example.
+```R
+plot1 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot2 <- FeaturePlot(seurat_DS1, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot3 <- FeaturePlot(seurat_DS2, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot1 + plot2 + plot3
+```
+<img src="images/featureplots_seurat_integrated_separated_datasets.png" align="centre" /><br/><br/>
+Be aware that sometimes existed trajectories may seem to be broken at the embedding due to data distortion and information compression. This is particularly common in t-SNE, especially if there were not many cells of the intermediate cell states at the middle of the trajectory. Therefore, be cautious when making judgement.
+4. There are for sure more aspects and ways that one can use for the comparison. Be open and creative.
+
+It is worth to mention, that people working on data integration methods have developed quite a few metrics aiming to evaluate and compare performance of different data integratino methods on different data sets **in an objective and quantitative manner**. In general, there are two groups of metrics, focusing on different perspective. The first group focuses on local level mixing, i.e. to evaluate whether neighbors of a cell are distributed in different data sets. One example is [Local Inverse Simpson's Index (LISI)](https://github.com/immunogenomics/LISI), which is used in both the Harmony [paper](https://www.nature.com/articles/s41592-019-0619-0) and the benchmark [paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9).  The second group considers original cell heterogeneity structure of individual data sets, e.g. to check cell type purity of cell clusters after data integration. Examples include [Adjusted rand index (ARI)](https://link.springer.com/article/10.1007/BF01908075), which is also used in the benchmark paper. A good integration should find the best balance of them.
+
+If you are interested in these methods, the benchmark [paper]((https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9)) could be helpful. As mentioned, there are also some quantitative or semi-quantitative measurement of integration performance presented in the [Harmony](https://www.nature.com/articles/s41592-019-0619-0) and [CSS](https://www.biorxiv.org/content/10.1101/2020.02.27.968560v1) papers.
+
+

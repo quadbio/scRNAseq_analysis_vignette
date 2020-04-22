@@ -305,3 +305,20 @@ plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 
 ((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
 dev.off()
 
+
+## feature plot with samples separated
+seurat <- readRDS("../scRNAseq_analysis_vignette_seurat/integrated_seurat_obj.rds")
+png("images/featureplots_seurat_integrated_datasets.png", height=500, width=900)
+plot1 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot2 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, cells=colnames(seurat)[seurat$orig.ident == "DS1"], pt.size = 0.1)
+plot3 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, cells=colnames(seurat)[seurat$orig.ident == "DS2"], pt.size = 0.1)
+plot1 + plot2 + plot3
+dev.off()
+
+png("images/featureplots_seurat_integrated_separated_datasets.png", height=500, width=900)
+plot1 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot2 <- FeaturePlot(seurat_DS1, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot3 <- FeaturePlot(seurat_DS2, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
+plot1 + plot2 + plot3
+dev.off()
+

@@ -1,32 +1,32 @@
 # Tutorial of single-cell RNA-seq data analysis in R
-#### Created by Zhisong He (2020-04-19)
+#### Compiled by Zhisong He (2020-04-25)
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
   * [Now let's start Part 1](#now-lets-start-part-1)
     * [Step 0. Import Seurat package](#step-0-import-seurat-package)
-	* [Step 1. Create a Seurat object](#step-1-create-a-seurat-object)
-	* [Step 2. Quality control](#step-2-quality-control)
-	* [Step 3. Normalization](#step-3-normalization)
-	* [Step 4. Feature selection for following heterogeneity analysis](#step-4-feature-selection-for-following-heterogeneity-analysis)
-	* [Step 5. Data scaling](#step-5-data-scaling)
-	* [(Optional and advanced) Alternative step 3-5: to use SCTransform](#optional-and-advanced-alternative-step-3-5-to-use-sctransform)
-	* [Step 6. Linear dimension reduction using principal component analysis (PCA)](#step-6-linear-dimension-reduction-using-principal-component-analysis-pca)
-	* [Step 7. Non-linear dimension reduction for visualization](#step-7-non-linear-dimension-reduction-for-visualization)
-	* [Step 8. Cluster the cells](#step-8-cluster-the-cells)
-	* [Step 9. Annotate cell clusters](#step-9-annotate-cell-clusters)
-	* [Step 10. Pseudotemporal cell ordering](#step-10-pseudotemporal-cell-ordering)
-	* [Step 11. Save the result](#step-11-save-the-result)
-	* [What else?](#what-else)
+    * [Step 1. Create a Seurat object](#step-1-create-a-seurat-object)
+    * [Step 2. Quality control](#step-2-quality-control)
+    * [Step 3. Normalization](#step-3-normalization)
+    * [Step 4. Feature selection for following heterogeneity analysis](#step-4-feature-selection-for-following-heterogeneity-analysis)
+    * [Step 5. Data scaling](#step-5-data-scaling)
+    * [(Optional and advanced) Alternative step 3-5: to use SCTransform](#optional-and-advanced-alternative-step-3-5-to-use-sctransform)
+    * [Step 6. Linear dimension reduction using principal component analysis (PCA)](#step-6-linear-dimension-reduction-using-principal-component-analysis-pca)
+    * [Step 7. Non-linear dimension reduction for visualization](#step-7-non-linear-dimension-reduction-for-visualization)
+    * [Step 8. Cluster the cells](#step-8-cluster-the-cells)
+    * [Step 9. Annotate cell clusters](#step-9-annotate-cell-clusters)
+    * [Step 10. Pseudotemporal cell ordering](#step-10-pseudotemporal-cell-ordering)
+    * [Step 11. Save the result](#step-11-save-the-result)
+    * [What else?](#what-else)
   * [Now starts Part 2: when you need to jointly analyze multiple scRNA-seq data sets](#now-starts-part-2-when-you-need-to-jointly-analyze-multiple-scRNA-seq-data-sets)
     * [Step 0. Load data](#step-0-load-data)
-	* [Step 1. Merge the two data sets](#step-1-merge-the-two-data-sets)
-	* [Step 2-1. Data integration using Seurat](#step-2-1-data-integration-using-seurat)
-	* [Step 2-2. Data integration using Harmony](#step-2-2-data-integration-using-harmony)
-	* [Step 2-3. Data integration using LIGER](#step-2-3-data-integration-using-liger)
-	* [Step 2-4. Data integration using RSS to BrainSpan](#step-2-4-data-integration-using-rss-to-brainspan)
-	* [Step 2-5. Data integration using CSS](#step-2-5-data-integration-using-css)
-	* [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
+    * [Step 1. Merge the two data sets](#step-1-merge-the-two-data-sets)
+    * [Step 2-1. Data integration using Seurat](#step-2-1-data-integration-using-seurat)
+    * [Step 2-2. Data integration using Harmony](#step-2-2-data-integration-using-harmony)
+    * [Step 2-3. Data integration using LIGER](#step-2-3-data-integration-using-liger)
+    * [Step 2-4. Data integration using RSS to BrainSpan](#step-2-4-data-integration-using-rss-to-brainspan)
+    * [Step 2-5. Data integration using CSS](#step-2-5-data-integration-using-css)
+    * [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
 
 
 ## Introduction
@@ -225,8 +225,10 @@ It is a hot topic whether tSNE or UMAP is superior to the other (for instance, t
 
 Once the tSNE or UMAP embedding is created, one can start to check whether certain cell types or cell states exist in the data, by doing feature plots of some known canonical markers of the cell types of interest.
 ```R
-plot1 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "tsne")
-plot2 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"), ncol=3, reduction = "umap")
+plot1 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"),
+                     ncol=3, reduction = "tsne")
+plot2 <- FeaturePlot(seurat, c("MKI67","NES","DCX","FOXG1","DLX2","EMX1","OTX2","LHX9","TFAP2A"),
+                     ncol=3, reduction = "umap")
 plot1 / plot2
 ```
 <span style="font-size:0.8em">*P.S. with ```patchwork``` imported, ```plot1 / plot2``` generates the plotting layout that plot1 is put above plot2.*</span>
@@ -308,7 +310,12 @@ You may have felt that this process takes quite a while. There is a faster solut
 ```R
 library(presto)
 cl_markers_presto <- wilcoxauc(seurat)
-cl_markers_presto %>% filter(logFC > log(1.2) & pct_in > 20 & padj < 0.05) %>% group_by(group) %>% arrange(desc(logFC), .by_group=T) %>% top_n(n = 2, wt = logFC) %>% print(n = 40, width = Inf)
+cl_markers_presto %>%
+    filter(logFC > log(1.2) & pct_in > 20 & padj < 0.05) %>%
+    group_by(group) %>%
+    arrange(desc(logFC), .by_group=T) %>%
+    top_n(n = 2, wt = logFC) %>%
+    print(n = 40, width = Inf)
 ```
 <img src="images/top2_cl_markers_presto.png" align="centre" /><br/><br/>
 <span style="font-size:0.8em">*P.S. The latest presto requires DESeq2 to be installed. If you think Wilcoxon test is sufficient, an older version of presto would be enough. Do it by ```devtools::install_github("immunogenomics/presto", ref = "4b96fc8")```.*</span>
@@ -377,10 +384,20 @@ td {
 
 We can replace the cell cluster labels by the annotation, but this is optional
 ```R
-new_ident <- setNames(c("Dorsal telen. NPC","Midbrain-hindbrain boundary neuron","Dorsal telen. neuron","Dien. and midbrain excitatory neuron",
-                        "MGE neuron","G2M dorsal telen. NPC","Dorsal telen. IP","Dien. and midbrain NPC",
-                        "Dien. and midbrain IP and excitatory early neuron","G2M Dien. and midbrain NPC","G2M dorsal telen. NPC","Dien. and midbrain inhibitory neuron",
-                        "Dien. and midbrain IP and early inhibitory neuron","Ventral telen. neuron","Unknown 1","Unknown 2"),
+new_ident <- setNames(c("Dorsal telen. NPC",
+                        "Midbrain-hindbrain boundary neuron",
+                        "Dorsal telen. neuron",
+                        "Dien. and midbrain excitatory neuron",
+                        "MGE neuron","G2M dorsal telen. NPC",
+                        "Dorsal telen. IP","Dien. and midbrain NPC",
+                        "Dien. and midbrain IP and excitatory early neuron",
+                        "G2M Dien. and midbrain NPC",
+                        "G2M dorsal telen. NPC",
+                        "Dien. and midbrain inhibitory neuron",
+                        "Dien. and midbrain IP and early inhibitory neuron",
+                        "Ventral telen. neuron",
+                        "Unknown 1",
+                        "Unknown 2"),
                       levels(seurat))
 seurat <- RenameIdents(seurat, new_ident)
 DimPlot(seurat, reduction = "umap", label = TRUE) + NoLegend()
@@ -415,7 +432,10 @@ Not so great. The G2M cells are no longer in separated clusters, but it still co
 
 As briefly mentioned above, the ```ScaleData``` function has the option to include variables representing sources of unwanted variations. We can try to use that to further reduce the cell cycle influence; but before that, we need to generate cell-cycle-related scores for every cell to describe their cell cycle status.
 ```R
-seurat_dorsal <- CellCycleScoring(seurat_dorsal, s.features = cc.genes$s.genes, g2m.features = cc.genes$g2m.genes, set.ident = TRUE)
+seurat_dorsal <- CellCycleScoring(seurat_dorsal,
+                                  s.features = cc.genes$s.genes,
+                                  g2m.features = cc.genes$g2m.genes,
+                                  set.ident = TRUE)
 seurat_dorsal <- ScaleData(seurat_dorsal, vars.to.regress = c("S.Score", "G2M.Score"))
 ```
 
@@ -444,9 +464,16 @@ FeaturePlot(seurat_dorsal, c("dpt","GLI3","EOMES","NEUROD6"), ncol=4)
 
 To visualize expression changes along the constructed pseudotime, a scatter plot with fitted curve is usually a straightforward way.
 ```R
-plot1 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["GLI3",]), xlab="Dpt", ylab="Expression", main="GLI3") + geom_smooth(se = FALSE, method = "loess") + theme_bw()
-plot2 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["EOMES",]), xlab="Dpt", ylab="Expression", main="EOMES") + geom_smooth(se = FALSE, method = "loess") + theme_bw()
-plot3 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["NEUROD6",]), xlab="Dpt", ylab="Expression", main="NEUROD6") + geom_smooth(se = FALSE, method = "loess") + theme_bw()
+library(ggplot2)
+plot1 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["GLI3",]),
+               xlab="Dpt", ylab="Expression", main="GLI3") +
+         geom_smooth(se = FALSE, method = "loess") + theme_bw()
+plot2 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["EOMES",]),
+               xlab="Dpt", ylab="Expression", main="EOMES") +
+         geom_smooth(se = FALSE, method = "loess") + theme_bw()
+plot3 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["NEUROD6",]),
+               xlab="Dpt", ylab="Expression", main="NEUROD6") +
+         geom_smooth(se = FALSE, method = "loess") + theme_bw()
 plot1 + plot2 + plot3
 ```
 <img src="images/dpt_scatterplots_dorsal.png" align="centre" /><br/><br/>
@@ -606,7 +633,8 @@ seurat <- ScaleData(seurat, split.by = "orig.ident", do.center = FALSE)
 seurat <- RunOptimizeALS(seurat, k = 20, lambda = 5, split.by = "orig.ident")
 seurat <- RunQuantileAlignSNF(seurat, split.by = "orig.ident")
 seurat <- RunUMAP(seurat, dims = 1:ncol(seurat[["iNMF"]]), reduction = "iNMF")
-seurat <- FindNeighbors(seurat, reduction = "iNMF", dims = 1:ncol(Embeddings(seurat, "iNMF"))) %>% FindClusters(resolution = 0.6)
+seurat <- FindNeighbors(seurat, reduction = "iNMF", dims = 1:ncol(Embeddings(seurat, "iNMF"))) %>%
+    FindClusters(resolution = 0.6)
 
 # You may also want to save the object
 saveRDS(seurat, file="integrated_liger.rds")
@@ -640,7 +668,8 @@ library(simspec)
 seurat <- merge(seurat_DS1, seurat_DS2)
 seurat <- ref_sim_spectrum(seurat, ref)
 seurat <- RunUMAP(seurat, reduction="rss", dims = 1:ncol(Embeddings(seurat, "rss")))
-seurat <- FindNeighbors(seurat, reduction = "rss", dims = 1:ncol(Embeddings(seurat, "rss"))) %>% FindClusters(resolution = 0.6)
+seurat <- FindNeighbors(seurat, reduction = "rss", dims = 1:ncol(Embeddings(seurat, "rss"))) %>%
+    FindClusters(resolution = 0.6)
 
 plot1 <- UMAPPlot(seurat, group.by="orig.ident")
 plot2 <- UMAPPlot(seurat, label = T)
@@ -664,7 +693,8 @@ seurat <- merge(seurat_DS1, seurat_DS2) %>%
     RunPCA(npcs = 50)
 seurat <- cluster_sim_spectrum(seurat, label_tag = "orig.ident", cluster_resolution = 0.3)
 seurat <- RunUMAP(seurat, reduction="css", dims = 1:ncol(Embeddings(seurat, "css")))
-seurat <- FindNeighbors(seurat, reduction = "css", dims = 1:ncol(Embeddings(seurat, "css"))) %>% FindClusters(resolution = 0.6)
+seurat <- FindNeighbors(seurat, reduction = "css", dims = 1:ncol(Embeddings(seurat, "css"))) %>%
+    FindClusters(resolution = 0.6)
 
 plot1 <- UMAPPlot(seurat, group.by="orig.ident")
 plot2 <- UMAPPlot(seurat, label = T)
@@ -686,8 +716,10 @@ However, before going further, a decision has to be made which data integration 
 ```R
 seurat <- readRDS("integrated_seurat.rds")
 plot1 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, pt.size = 0.1)
-plot2 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, cells=colnames(seurat)[seurat$orig.ident == "DS1"], pt.size = 0.1)
-plot3 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1, cells=colnames(seurat)[seurat$orig.ident == "DS2"], pt.size = 0.1)
+plot2 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1,
+                     cells=colnames(seurat)[seurat$orig.ident == "DS1"], pt.size = 0.1)
+plot3 <- FeaturePlot(seurat, c("EMX1","DLX2"), ncol=1,
+                     cells=colnames(seurat)[seurat$orig.ident == "DS2"], pt.size = 0.1)
 plot1 + plot2 + plot3
 ```
 <img src="images/featureplots_seurat_integrated_datasets.png" align="centre" /><br/><br/>

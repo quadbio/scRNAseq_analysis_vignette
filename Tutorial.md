@@ -293,7 +293,10 @@ Obviously, the first method requires some prior knowledge of the system being me
 
 The easiest to visualize expression of marker genes of interest across cell clusters is probably by a heatmap.
 ```R
-ct_markers <- c("MKI67","NES","DCX","FOXG1","DLX2","DLX5","ISL1","SIX3","NKX2.1","SOX6","NR2F2","EMX1","PAX6","GLI3","EOMES","NEUROD6","RSPO3","OTX2","LHX9","TFAP2A","RELN","HOXB2","HOXB5")
+ct_markers <- c("MKI67","NES","DCX","FOXG1", # G2M, NPC, neuron, telencephalon
+                "DLX2","DLX5","ISL1","SIX3","NKX2.1","SOX6","NR2F2", # ventral telencephalon related
+                "EMX1","PAX6","GLI3","EOMES","NEUROD6", # dorsal telencephalon related
+                "RSPO3","OTX2","LHX9","TFAP2A","RELN","HOXB2","HOXB5") # non-telencephalon related
 DoHeatmap(seurat, features = ct_markers) + NoLegend()
 ```
 <img src="images/heatmap_ctmarkers.png" align="centre" /><br/><br/>

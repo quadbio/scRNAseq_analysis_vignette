@@ -159,7 +159,9 @@ seurat <- SCTransform(seurat, variable.features.n = 3000)
 ```
 The ```variable.features.n``` controls the number of highly variable features to identify. One can also put in unwanted variation source to the model to try to remove them. For instance,
 ```R
-seurat <- SCTransform(seurat, vars.to.regress = c("nFeature_RNA", "percent.mt"), variable.features.n = 3000)
+seurat <- SCTransform(seurat,
+                      vars.to.regress = c("nFeature_RNA", "percent.mt"),
+                      variable.features.n = 3000)
 ```
 This operation combines normalization, scaling and highly variable feature identification so it essentially replaces the above Step 3 to step 5. Drawbacks of running ```SCTransform``` include
 1. It is slow.

@@ -121,17 +121,17 @@ seurat <- NormalizeData(seurat)
 In principle there are several parameters one can set in the ```NormalizeData``` function, but most of the time the default settings are good.
 
 ### Step 4. Feature selection for following heterogeneity analysis
-The biggest advantage of single-cell as compared to bulk RNA-seq is the potential to look into cellular heterogeneity of samples, by looking for cell groups with distinct molecular signatures. However, not every gene has the same level of information and the same contribution when trying to identify different cell groups. For instance, genes with low expression levels, and those with similar expression levels across all cells, are not very informative and may introduce troubles by diluting differences among different cell groups. Therefore, doing a proper feature selection is very necessary when analyzing scRNA-seq data.
+The biggest advantage of single-cell as compared to bulk RNA-seq is the potential to look into cellular heterogeneity of samples, by looking for cell groups with distinct molecular signatures. However, not every gene has the same level of information and the same contribution when trying to identify different cell groups. For instance, genes with low expression levels, and those with similar expression levels across all cells, are not very informative and may dilute differences between distinct cell groups. Therefore, it is necessary to perform a proper feature selection before further exploring the scRNA-seq data.
 
-In Seurat, or more general in scRNA-seq data analysis, this step usually refers to identification of highly variable features/genes, which means to identify genes with the most varied expression levels in cells.
+In Seurat, or more general in scRNA-seq data analysis, this step usually refers to the identification of highly variable features/genes, which are genes with the most varied expression levels across cells.
 ```R
 seurat <- FindVariableFeatures(seurat, nfeatures = 3000)
 ```
-By default, Seurat calculates standardized variance of each gene, and pick the top 2000 ones as the highly variable features. One can change the number of highly variable features easily by giving the ```nfeatures``` option (here the top 3000 genes are used).
+By default, Seurat calculates the standardized variance of each gene across cells, and picks the top 2000 ones as the highly variable features. One can change the number of highly variable features easily by giving the ```nfeatures``` option (here the top 3000 genes are used).
 
-There is no good criteria to determine how many highly variable features to use. Sometimes one needs to do some iteration to pick the number giving the most clear and interpretable result. In most of time, a value between 2000 to 5000 is OK and using a different value usually don't affect the results very much.
+There is no good criteria to determine how many highly variable features to use. Sometimes one needs to do some iterations to pick the number that gives the most clear and interpretable result. Most often, a value between 2000 to 5000 is OK and using a different value usually don't affect the results too much.
 
-One can visualize the result via a variable feature plot but this is very optional.
+One can visualize the result in a variable feature plot, but this is optional.
 ```R
 top_features <- head(VariableFeatures(seurat), 20)
 plot1 <- VariableFeaturePlot(seurat)
@@ -141,7 +141,7 @@ plot1 + plot2
 <img src="images/variablefeatures.png" align="centre" /><br/><br/>
 
 ### Step 5. Data scaling
-Since different genes have different base expression levels and variations, their contributions to the analysis are different if no data transformation is done. This is not something we want as we don't want our analysis only represent the behaviors of highly expressed genes. Therefore, as what is usually done in any data science field, a scaling to the data is applied to the selected features.
+Since different genes have different base expression levels and distributions, their contribution to the analysis is different if no data transformation is performed. This is something we do not want as we don't want our analysis to only depend on highly expressed genes. Therefore a scaling is applied to the data using the selected features, just like one usually does in any data science field.
 ```R
 seurat <- ScaleData(seurat)
 ```
@@ -150,7 +150,7 @@ At this step, one can also remove unwanted source of variation from the data set
 ```R
 seurat <- ScaleData(seurat, vars.to.regress = c("nFeature_RNA", "percent.mt"))
 ```
-Variables which are commonly considered to regress out include the number of detected genes/transcripts (nFeature_RNA / nCount_RNA), mitochondrial transcript percentage (percent.mt), and cell cycle related varaibles (will mention later). What it tries to do is to firstly fit a linear regression model, using the normalized expression level of a gene as the dependent variable, and the variables to be regressed out as the independent variables. Residuals of the linear model are then taken as the signals with the linear effect of the considered variables removed. However, doing so dramatically slow down the whole process, and the result is not necessarily improved as the unwanted variation may be far from linear. Therefore, a common suggestion is to first of all not to do any regress-out, check the result, and if the unwanted variation source dominated the heterogeneity, try to regress out the variable and see whether the result improves.
+Variables which are commonly considered to regress out include the number of detected genes/transcripts (nFeature_RNA / nCount_RNA), mitochondrial transcript percentage (percent.mt), and cell cycle related varaibles (see below). What it tries to do is to firstly fit a linear regression model, using the normalized expression level of a gene as the dependent variable, and the variables to be regressed out as the independent variables. Residuals of the linear model are then taken as the signals with the linear effect of the considered variables removed. However, doing so dramatically slow down the whole process, and the result is not necessarily improved as the unwanted variation may be far from linear. Therefore, a common suggestion is to first of all not to do any regress-out, check the result, and if the unwanted variation source dominated the heterogeneity, try to regress out the variable and see whether the result improves.
 
 ### (Optional and advanced) Alternative step 3-5: to use SCTransform
 One problem of doing the typical log-normalization is [introducing the zero-inflation artifact](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1) to the scRNA-seq data. To better resolve this issue, Hafemeister and Satija introduced an R package ```sctransform```, which uses a regularized negative binomial regression model to normalize scRNA-seq data. Seurat has a wrapper function ```SCTransform```.

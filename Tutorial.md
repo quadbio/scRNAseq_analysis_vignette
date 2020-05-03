@@ -129,7 +129,7 @@ seurat <- FindVariableFeatures(seurat, nfeatures = 3000)
 ```
 By default, Seurat calculates the standardized variance of each gene across cells, and picks the top 2000 ones as the highly variable features. One can change the number of highly variable features easily by giving the ```nfeatures``` option (here the top 3000 genes are used).
 
-There is no good criteria to determine how many highly variable features to use. Sometimes one needs to do some iterations to pick the number that gives the most clear and interpretable result. Most often, a value between 2000 to 5000 is OK and using a different value usually don't affect the results too much.
+There is no good criteria to determine how many highly variable features to use. Sometimes one needs to go through some iterations to pick the number that gives the most clear and interpretable result. Most often, a value between 2000 to 5000 is OK and using a different value doesn't affect the results too much.
 
 One can visualize the result in a variable feature plot, but this is optional.
 ```R
@@ -141,63 +141,63 @@ plot1 + plot2
 <img src="images/variablefeatures.png" align="centre" /><br/><br/>
 
 ### Step 5. Data scaling
-Since different genes have different base expression levels and distributions, their contribution to the analysis is different if no data transformation is performed. This is something we do not want as we don't want our analysis to only depend on highly expressed genes. Therefore a scaling is applied to the data using the selected features, just like one usually does in any data science field.
+Since different genes have different base expression levels and distributions, the contribution of each gene to the analysis is different if no data transformation is performed. This is something we do not want as we don't want our analysis to only depend on genes that are highly expressed. Therefore a scaling is applied to the data using the selected features, just like one usually does in any data science field.
 ```R
 seurat <- ScaleData(seurat)
 ```
 
-At this step, one can also remove unwanted source of variation from the data set by setting the parameter ```var.to.regress```. For instance,
+At this step, one can also remove unwanted sources of variation from the data set by setting the parameter ```var.to.regress```. For instance,
 ```R
 seurat <- ScaleData(seurat, vars.to.regress = c("nFeature_RNA", "percent.mt"))
 ```
-Variables which are commonly considered to regress out include the number of detected genes/transcripts (nFeature_RNA / nCount_RNA), mitochondrial transcript percentage (percent.mt), and cell cycle related varaibles (see below). What it tries to do is to firstly fit a linear regression model, using the normalized expression level of a gene as the dependent variable, and the variables to be regressed out as the independent variables. Residuals of the linear model are then taken as the signals with the linear effect of the considered variables removed. However, doing so dramatically slow down the whole process, and the result is not necessarily improved as the unwanted variation may be far from linear. Therefore, a common suggestion is to first of all not to do any regress-out, check the result, and if the unwanted variation source dominated the heterogeneity, try to regress out the variable and see whether the result improves.
+Variables which are commonly considered to be regressed out include the number of detected genes/transcripts (nFeature_RNA / nCount_RNA), mitochondrial transcript percentage (percent.mt), and cell cycle related variables (see below). What it tries to do is to first fit a linear regression model, using the normalized expression level of a gene as the dependent variable, and the variables to be regressed out as the independent variables. Residuals of the linear model are then taken as the signals with the linear effect of the considered variables removed. I should note that this process of regressing out variables dramatically slows down the whole process, and it is not clear that the result will be satisfactory as the unwanted variation may be far from linear. Therefore, a common suggestion is not to perform any regress-out in the first iteration of data exploration, but first check the result, and if any unwanted source of variation dominates the cellular heterogeneity, try to regress out the respective variable and see whether the result improves.
 
-### (Optional and advanced) Alternative step 3-5: to use SCTransform
-One problem of doing the typical log-normalization is [introducing the zero-inflation artifact](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1) to the scRNA-seq data. To better resolve this issue, Hafemeister and Satija introduced an R package ```sctransform```, which uses a regularized negative binomial regression model to normalize scRNA-seq data. Seurat has a wrapper function ```SCTransform```.
+### (Optional and advanced) Alternative step 3-5: using SCTransform
+One problem of doing the typical log-normalization is that is [introduces the zero-inflation artifact](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1874-1) into the scRNA-seq data. To better resolve this issue, Hafemeister and Satija introduced an R package ```sctransform```, which uses a regularized negative binomial regression model to normalize scRNA-seq data. Seurat has a wrapper function ```SCTransform```.
 ```R
 seurat <- SCTransform(seurat, variable.features.n = 3000)
 ```
-The ```variable.features.n``` controls the number of highly variable features to identify. One can also put in unwanted variation source to the model to try to remove them. For instance,
+The ```variable.features.n``` controls the number of highly variable features to identify. One can also add information about which unwanted sources of variation to regress out. For instance,
 ```R
 seurat <- SCTransform(seurat,
                       vars.to.regress = c("nFeature_RNA", "percent.mt"),
                       variable.features.n = 3000)
 ```
-This operation combines normalization, scaling and highly variable feature identification so it essentially replaces the above Step 3 to step 5. Drawbacks of running ```SCTransform``` include
+This operation combines normalization, scaling and highly variable feature identification so it essentially replaces steps 3-5 from above. Drawbacks of running ```SCTransform``` include
 1. It is slow.
-2. It makes the normalized expression measurements data-dependent. In the typical procedure, the normalization only relies on the cell itself; in ```SCTransform```, however, information from the other cells in the same data set is involved during normalization. This potentially introduces problems when multiple data sets are needed to be compared, as technically speaking, the normalized expression measurements of two data sets normalized using ```SCTransform``` on their own are not comparable.
-3. There are steps in ```SCTransform``` which involve random sampling to speed up the computation. It means there is stochastics in ```SCTransform``` so the result is different from one time to another, even if it is applied to the same data set.
+2. It makes the normalized expression measurements data-dependent. In the standard procedure, the normalization only relies on the cell itself; in ```SCTransform```, however, information from the other cells in the same data set is involved during normalization. This potentially introduces problems when multiple data sets need to be compared, since the normalized expression measurements of two data sets each individually normalized using ```SCTransform``` are not comparable.
+3. There are steps in ```SCTransform``` which involve random sampling to speed up the computation. That means that there is some stochasticity in ```SCTransform``` and the result is slightly different every time, even if it is applied to the same data set.
 
-Therefore, use it wisely. There are some scenarios that SCTransform would be recommended to try. For instance, when you do differential expression analysis between cells of two conditions, and get results with dramatic biased DE directionality, i.e. huge amount of genes with increased expression but very few with decreased expression, if at the same time the two conditions have every different data coverage (e.g. the condition with a lof of decreased expression have significantly smaller number of detected gene/transcript numbers), such a biased DE result may be indeed artifacts introduced during typical normalization procedure. In that case, using SCTransform may help to reduce such an artifact.
+Therefore, it should be used wisely. There are some scenarios in which trying SCTransform would be recommended. For instance, you might perform a differential expression analysis between cells of two conditions, and the results show a dramatic bias in DE, i.e. a huge amount of genes with increased expression but very few genes with decreased expression. If the data for the two conditions shows very different coverage (e.g. the condition with a lot of decreased expression shows significantly smaller number of detected gene/transcript numbers), such a biased DE result may be indeed an artifact introduced by the standard normalization procedure. In this case, using SCTransform may help to reduce the artifact.
 
-### Step 6. Linear dimension reduction using principal component analysis (PCA)
-In principle one can start to look at cell heterogeneity after identification of highly variable genes and scaling the data. However, applying a linear dimension reduction before doing any further analysis is strongly recommended and sometimes even seen as compulsory. The benefit of doing such a dimension reduction includes but not limits to:
+### Step 6. Linear dimensionality reduction using principal component analysis (PCA)
+In principle one can start to look at cell heterogeneity after identifying highly variable genes and scaling the data. However, applying a linear dimension reduction before doing any further analysis is strongly recommended and sometimes even seen as compulsory. The benefit of doing such a dimension reduction includes but is not limited to:
 1. The data becomes much more compact so that computation becomes much faster.
-2. As scRNA-seq data is intrincically sparse, summarizing measurements of related features greatly enhances the signal robustness
+2. As scRNA-seq data is intrinsically sparse, summarizing measurements of related features greatly enhances the signal robustness.
 
-Drawback? Basically nothing. Well, one needs some extra lines in the script and needs to decide the number of reduced dimension to use in the following analysis, but that's it. If so, what's the point not to do it?
+Any Drawback? Basically none. Well, one needs some extra lines in the script and needs to decide on the number of reduced dimensions to use in the following analysis, but that's it.
 
-For scRNA-seq data, the linear dimension reduction mostly refers to principal component analysis, or PCA.
+For scRNA-seq data, the linear dimension reduction mostly refers to principal component analysis, short PCA.
 ```R
 seurat <- RunPCA(seurat, npcs = 50)
 ```
-In principle, the number of PCs in your data that one can calculate is the smaller value between the number of highly variable genes and the number of cells. However, most of these PCs are not informative and only represent random noise. Only the top PCs are informative and represent differences among cell groups. Therefore, instead of calculating all possible PCs, Seurat uses truncated PCA to only calculate the first PCs, by default the top 50 PCs. One can change that by setting the ```npcs``` parameter.
+The number of principal components (PCs) that one can calculate for a data set is equal to the number of highly variable genes or the number of cells, whichever value is smaller. However, most of these PCs are not informative and only represent random noise. Only the top PCs are informative and represent differences among cell populations. Therefore, instead of calculating all possible PCs, Seurat uses truncated PCA to only calculate the first PCs, by default the top 50 PCs. One can change that by setting the ```npcs``` parameter.
 
-Even then, one doesn't necessarily use all the calculated PCs. Indeed, determinting how many top PCs to use is an art. There is no golden standard, and everyone has his/her own understanding. Usually, people use the elbowplot to assist making the decision.
+Even then, one doesn't necessarily use all the calculated PCs. Determinting how many top PCs to use is an art. There is no golden standard, and everyone has his/her own understanding. The so-called elbow plot method can help with the decision. It consists of plotting the explained variation as a function of each PC, and picking the elbow of the curve as the number of PCs to use. 
 ```R
 ElbowPlot(seurat, ndims = ncol(Embeddings(seurat, "pca")))
 ```
-<span style="font-size:0.8em">*P.S. ```Embeddings``` is the function in Seurat to obtain the dimension reduction result given the name of the dimension reduction of interest. By default, the ```RunPCA``` function stores the PCA result in the embedding called 'pca', with each column being one PC. So here it tells Seurat to make the elbowplots to show the standarized variation of all the PCs that are calculated*</span>
+<span style="font-size:0.8em">*P.S. ```Embeddings``` is the function in Seurat to obtain the dimension reduction result given the name of the dimension reduction of interest. By default, the ```RunPCA``` function stores the PCA result in the embedding called 'pca', with each column being one PC. So here it tells Seurat to construct the elbow plot to show the standarized variation of all the PCs that are calculated*</span>
 
 <img src="images/elbowplot.png" align="centre" /><br/><br/>
 
-As it's defined, low-rank PCs have smaller standard deviations. However, such decrease of standard deviation is not linear. It drops dramatically at the very beginning, and then slow down and soon becomes pretty flat. One would then assume that the first phase of the curve represent the 'real' signal related to cell group differences, while the second phase represent mostly fluctuation of measurement or the stochastic nature of individual cells. To that perspective, choosing the top-15 PCs is probably good and PCs ranked lower than 20 look quite unnecessary. However, even though this is a pretty good reference, it is far from perfect:
+As it is defined, higher-ranked PCs explain more variation in the data (have higher standard deviations) than lower-ranked PCs. However, the decrease of standard deviation is not linear. The curve of the elbow plot drops dramatically for the first few PCs, and then slows down and becomes pretty flat. One would assume that the first phase of the curve represents the 'real' signal related to biological differences between cell populations, while the second phase mostly represents technical variation or the stochastic nature of individual cells. To that perspective, choosing the top-15 PCs is probably good and PCs ranked lower than 20 look quite unnecessary. However, even though this is a pretty good reference, it is far from perfect:
   * It is very difficult to precisely define the elbow point or turning point of the curve, as it is usually not a perfect elbow.
-  * Higher-ranked PCs do explain more variation than lower-ranked PCs, but in real world more explained variations don't necessaily mean more informative. Sometimes there are interesting but weak signals buried among noises and can only recovered in some lower-ranked PCs.
+  * Higher-ranked PCs do explain more variation than lower-ranked PCs, but more explained variations does not necessarily mean higher information content. Sometimes there is interesting but weak signal buried in the noise and therefore as part of lower-ranked PCs.
 
-There is another procedure implemented in Seurat called ```JackStraw``` which can also serve as another reference. However, to our experience, it is very slow because it relies on data permutations and essentially it does not provide much more information than the elbow plot. It does estimates statistical significance of each PC but similarly, a 'significant' PC doesn't mean it is informative. And when cell number increases, more and more PCs become statistically 'significant' even though their explained variation is not substantial. People interested in this method can take a look at the Seurat [vignette](https://satijalab.org/seurat/v3.1/pbmc3k_tutorial.html).
+There is another procedure implemented in Seurat called ```JackStraw``` which can also help to identify how many PCs to consider for the following analysis. However, in our experience this procedure is very slow because it relies on data permutation and it essentially does not provide much more information than the elbow plot. What it does is to estimate statistical significance of each PC, but similarly, a 'significant' PC doesn't mean it is informative. And when cell number increases, more and more PCs become statistically 'significant' even though their explained variation is not substantial. People interested in this method can take a look at the Seurat [vignette](https://satijalab.org/seurat/v3.1/pbmc3k_tutorial.html).
 
-Besides making the decision unbiasly, one can also check for each of the top PCs which genes are mostly contributing. This can be informative if one knows these genes and the biology behind. This gives opportunities to understand or guess the biological implication of each of the top PCs, so that one can pick those representing useful information. 
+Apart from making an unbiased decision, one can also check which genes are mostly contributing to each of the top PCs . This can be informative if one knows the genes and the biology of the analyzed sample. It provides the opportunity to understand the biological implication of each of the top PCs, so that one can pick those representing useful information. 
 ```R
 PCHeatmap(seurat, dims = 1:20, cells = 500, balanced = TRUE, ncol = 4)
 ```

@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2020-05-04
+#### Updated on 2021-03-09
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -19,15 +19,18 @@
     * [Step 10. Pseudotemporal cell ordering](#step-10-pseudotemporal-cell-ordering)
     * [Step 11. Save the result](#step-11-save-the-result)
     * [What else?](#what-else)
-  * [Now starts Part 2: when you need to jointly analyze multiple scRNA-seq data sets](#now-starts-part-2-when-you-need-to-jointly-analyze-multiple-scRNA-seq-data-sets)
+  * [Now starts Part 2: when you need to jointly analyze multiple scRNA-seq data sets](#now-starts-part-2-when-you-need-to-jointly-analyze-multiple-scrna-seq-data-sets)
     * [Step 0. Load data](#step-0-load-data)
     * [Step 1. Merge the two data sets](#step-1-merge-the-two-data-sets)
     * [Step 2-1. Data integration using Seurat](#step-2-1-data-integration-using-seurat)
     * [Step 2-2. Data integration using Harmony](#step-2-2-data-integration-using-harmony)
     * [Step 2-3. Data integration using LIGER](#step-2-3-data-integration-using-liger)
-    * [Step 2-4. Data integration using RSS to BrainSpan](#step-2-4-data-integration-using-rss-to-brainspan)
-    * [Step 2-5. Data integration using CSS](#step-2-5-data-integration-using-css)
+    * [Step 2-4. Data integration using MNN](#step-2-4-data-integration-using-mnn)
+    * [Step 2-5. Data integration using RSS to BrainSpan](#step-2-5-data-integration-using-rss-to-brainspan)
+    * [Step 2-6. Data integration using CSS](#step-2-6-data-integration-using-css)
     * [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
+  * [Now starts Part 3: more optional advanced analysis for scRNA-seq data](#now-starts-part-3-more-optional-advanced-analysis-for-scrna-seq-data)
+    * [Part 3-1. RNA velocity analysis](#part-3-1-rna-velocity-analysis)
 
 
 ## Introduction
@@ -35,7 +38,7 @@ After getting the scRNA-seq data of your samples, you will want to analyze it pr
 
 Multiple toolkits and analytic frameworks have been developed to facilitate scRNA-seq data analysis. These options include but are not limit to [Seurat](https://satijalab.org/seurat/), developed by Rahul Satija's Lab in R, and [scanpy](https://icb-scanpy.readthedocs-hosted.com/en/stable/), developed by Fabian Theis's Lab in Python. Both toolkits provide functions and rich parameter sets that serve most of the routine analysis that one usually does on scRNA-seq data. However, one should be aware that these analytic frameworks do not cover all the interesting analyses that one can do when analyzing data. It is also important to get to know other tools for scRNA-seq data analysis.
 
-Since this is a tutorial for beginners, we will mostly introduce how to use Seurat to analyze your scRNA-seq data in R. At the end, we will also mention some other additional tools (e.g. presto, destiny, Harmony, simspec, etc.), which provide additional functionalities that you may miss if you only use Seurat.
+Since this is a tutorial for beginners, we will mostly introduce how to use Seurat to analyze your scRNA-seq data in R. At the end, we will also mention some other additional tools (e.g. presto, destiny, Harmony, simspec, etc.), which provide additional functionalities that you may miss if you only use Seurat. In the most recent update, we also provide the briefly example of some commonly used advanced analysis, such as RNA velocity.
 
 ## Preparation
 This tutorial assumes that the sequencing data preprocessing steps, including base calling, mapping and read counting, have been done. 10x Genomics has its own analysis pipeline [Cell Ranger](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/what-is-cell-ranger) for data generated with the 10x Genomics Chromium Single Cell Gene Expression Solution. At the end of the Cell Ranger pipeline, a count matrix is generated. If your scRNA-seq data is generated using another technology (e.g. well-based experiments using Smart-Seq2 and others), the Cell Ranger pipeline is likely unapplicable, and you will have to find another solution to generate the count matrix.
@@ -67,7 +70,7 @@ library(Matrix)
 counts <- readMM("data/DS1/matrix.mtx.gz")
 barcodes <- read.table("data/DS1/barcodes.tsv.gz", stringsAsFactors=F)[,1]
 features <- read.csv("data/DS1/features.tsv.gz", stringsAsFactors=F, sep="\t", header=F)
-rownames(counts) <- make.names(features[,2], unique=T)
+rownames(counts) <- make.unique(features[,2])
 colnames(counts) <- barcodes
 
 seurat <- CreateSeuratObject(counts, project="DS1")
@@ -541,8 +544,10 @@ Obviously, the two data sets separate from each other on the embedding. However,
 Here we will try different methods, including
 1. Seurat
 2. Harmony
-3. RSS to BrainSpan
-3. CSS
+3. LIGER
+4. MNN
+5. RSS to BrainSpan
+6. CSS
 
 ### Step 2-1. Data integration using Seurat
 Seurat has its own data integration procedure implemented. In brief, it firstly applies canonical correlation analaysis (CCA) to the data sets that need to be integrated, rotating them separately so that the covariance of the two data sets is maximized. In other words, Seurat uses CCA to find the way maximizing the similarities between data sets. Next, Seurat introduces an anchoring mechanism, looking for cell anchors in the two data sets. Cell anchors are cell pairs with each cell in a different data set. The two cells are one of the nearest neighbors of each other in the CCA space, while the nearest neighbors of one cell in its own data set also tend to be neighbors of the nearest neighbors of the other cell of the cell pair. The two anchored cells are seen as corresponding cells from one data set to the other, and an integration procedure is then applied by subtracting expression of one data set by the transformation matrix calculated by comparing the anchoring cell pairs in the two data sets. People interested in its detailed methodology can read its [paper](https://www.sciencedirect.com/science/article/pii/S0092867419305598).
@@ -598,7 +603,7 @@ It is worth to mention that Seurat also provides another strategy for integrativ
 This tutorial won't cover this part as it doesn't match with the data set we have in hand. For people would like to try, it won't be difficult to follow the respective [Seurat tutorial](https://satijalab.org/seurat/v3.1/integration.html).
 
 ### Step 2-2. Data integration using Harmony
-Besides Seurat, there are more data integration methods available now. [Harmony](https://github.com/immunogenomics/harmony), developed by Soumya Raychaudhurils lab, is one of them. It is also the most highlighted integration method in the [recent benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9) on scRNA-seq batch effect correction tools. In brief, Harmony uses fuzzy clustering to assign every cell to multiple clusters. For each cluster, it then calculates a correction factor for each data set to move the centroid of the cluster of this data set towards the global centroid of the cluster. Since every cell is represented as a combination of multiple clusters, a cell-specific correction factor is calculated by averaging the correction factors of clusters that the cell belongs to while weighting by the cluster assignment ratio. This process will be iterated until convergence happens or reaching the iteration limits. To get more details of the method, please refer to the [paper](https://www.nature.com/articles/s41592-019-0619-0).
+Besides Seurat, there are more data integration methods available now. [Harmony](https://github.com/immunogenomics/harmony), developed by Soumya Raychaudhurils lab, is one of them. It is also the most highlighted integration method in the first [benchmark](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9) on scRNA-seq batch effect correction tools. In brief, Harmony uses fuzzy clustering to assign every cell to multiple clusters. For each cluster, it then calculates a correction factor for each data set to move the centroid of the cluster of this data set towards the global centroid of the cluster. Since every cell is represented as a combination of multiple clusters, a cell-specific correction factor is calculated by averaging the correction factors of clusters that the cell belongs to while weighting by the cluster assignment ratio. This process will be iterated until convergence happens or reaching the iteration limits. To get more details of the method, please refer to the [paper](https://www.nature.com/articles/s41592-019-0619-0).
 
 Harmony provides a simple API for Seurat object, which is a function called ```RunHarmony```, so it is very easy to use. It takes the merged Seurat object (the one generated at Step 1) as the input and one needs to tell the function which metadata feature to use as the batch identity. It returns a Seurat object, with a more reduction called ```harmony``` added. It is like the corrected PCA so one should then explicitly tell Seurat to use the ```harmony``` reduction for following analysis including making UMAP embedding and identifying cell clusters.
 ```R
@@ -660,9 +665,41 @@ The result doesn't seem to be very easy to understand.
 
 In case you want to improve the LIGER integration, besides the ```nfeatures``` parameter in the ```FindVariableFeatures``` function just like all the other methods, parameters in the ```RunOptimizeALS``` function also matters, such as ```k``` and ```lambda```. LIGER has two functions called ```suggestK``` and ```suggestLambda``` to help to set these two parameters. Unfortunately these two parameters don't have their corresponding Seurat wrapper functions, or one would have to use the standalone ```liger``` package with its LIGER data type in order to use these two functions, and they are actually pretty slow. One can also change by guess with some principles, such as a larger ```k```would be needed when there are more sub-structure of the data; a larger ```lambda``` penalizes dataset-specific effects more strongly, so should better mixing cells from different data sets but potentially at the cost of over-integration (e.g. mixing cells with different expression signatures).
 
+### Step 2-4. Data integration using MNN
+MNN, developed by John Marioni's lab in EMBL-EBI, is one of the first algorithms developed for scRNA-seq data integration or batch correction. It estimates a cell-specific correction vector based on the mutual nearest neighbors between cells from two different samples/batches to introduce correction to the dimension reduction (e.g. PCA) of the query cells. It also introduces an ordering mechanism so that it also supports integration of more than two samples/batches. Although not being the most highlighted methods in the benchmarking paper mentioned above, it is one of the best methods according to other benchmark effort (e.g. [Luecken et al.](https://www.biorxiv.org/content/10.1101/2020.05.22.111161v2)). To get more details of the method, please refer to the [paper](https://www.nature.com/articles/nbt.4091). In R, the MNN algorithm is implemented in the ```batchelor``` package, and the wrapper function for a Seurat object is included in the ```SeuratWrappers``` package (```RunFastMNN``` function).
 
-### Step 2-4. Data integration using RSS to BrainSpan
-Seurat, Harmony and LIGER are probably the most commonly used methods designed for generic scRNA-seq data integration, but there are also more methods and concepts available which can be applied to data integration. One of the concept is, if there is a reference data set with multiple sample, where differences among those samples contain information of the cell type heterogeneity in the samples, representing each cell by its transcriptome similarities to those reference samples rather than its transcriptome profile itself may efficiently clean up technical noise while preserving the essential information. The method derived from this concept is called [reference component analysis (RCA)](https://www.nature.com/articles/ng.3818) or [reference similarity spectrum](https://www.nature.com/articles/s41586-019-1654-9).
+The ```RunFastMNN``` function uses a list of Seurat objects, each of which is for one sample/batch, as the input. One can use the ```SplitObject``` function in the ```Seurat``` package to split a Seurat object given a metadata column.
+
+```R
+library(SeuratWrappers)
+
+seurat_samples <- SplitObject(seurat, "orig.ident")
+seurat_mnn <- RunFastMNN(seurat_mnn)
+seurat[['mnn']] <- CreateDimReducObject(Embeddings(seurat_mnn, "mnn")[colnames(seurat),], key="MNN_")
+seurat <- RunUMAP(seurat, dims = 1:20, reduction = "mnn")
+seurat <- FindNeighbors(seurat, reduction = "mnn", dims = 1:20) %>%
+    FindClusters(resolution = 0.6)
+
+# You may also want to save the object
+saveRDS(seurat, file="integrated_mnn.rds")
+```
+<span style="font-size:0.8em">*P.S. To install batchelor, do ```BiocManager::install("batchelor")```. The ```batchelor``` package is required for the ```RunFastMNN``` function to work.*</span>
+
+We can next check the the integration method via its UMAP embedding.
+
+```R
+plot1 <- UMAPPlot(seurat, group.by="orig.ident")
+plot2 <- UMAPPlot(seurat, label = T)
+plot3 <- FeaturePlot(seurat, c("FOXG1","EMX1","DLX2","LHX9"), ncol=2, pt.size = 0.1)
+((plot1 / plot2) | plot3) + plot_layout(width = c(1,2))
+```
+<img src="images/umap_mnn_datasets.png" align="centre" /><br/><br/>
+
+The integration looks pretty promising. In most of the time MNN performs pretty well with default parameters. Still, one can easily introduce some tuning by e.g. changing the number of features or providing a fully customized feature set for the integration. This can be done by setting up the ```features``` parameter in the ```RunFastMNN``` wrapper function. There are also more parameters that one can pass to the original function (```fastMNN``` in the ```batchelor``` package, e.g. number of PCs to calculate).
+
+
+### Step 2-5. Data integration using RSS to BrainSpan
+Seurat, Harmony, LIGER and MNN are probably the most commonly used methods designed for generic scRNA-seq data integration, but there are also more methods and concepts available which can be applied to data integration. One of the concept is, if there is a reference data set with multiple sample, where differences among those samples contain information of the cell type heterogeneity in the samples, representing each cell by its transcriptome similarities to those reference samples rather than its transcriptome profile itself may efficiently clean up technical noise while preserving the essential information. The method derived from this concept is called [reference component analysis (RCA)](https://www.nature.com/articles/ng.3818) or [reference similarity spectrum](https://www.nature.com/articles/s41586-019-1654-9).
 
 To do this analysis, one firstly needs a good reference. For cerebral organoid samples, the BrainSpan bulk RNA-seq data set of human brains from early fetal development to adult by Allen Brain Atlas is a very good one.
 ```R
@@ -690,7 +727,7 @@ We got nice trajectories and cells from the two samples seem to mix in a reasona
 
 Even if you like this result very much, there is a very obvious limitation of RCA/RSS, that there has to be a nice reference data set available so that one can calculate the similarities without lossing too much information. If your data set happened to have some interesting signals which are unavailable at all in the reference data, you would very likely miss it. As RSS represents the data purely by similarities to the reference data, if there is no change applied to the reference data, there is no much space for improving its result. The only effective parameter in the function which could be beneficial to change is the ```method``` parameter in the ```ref_sim_spectrum``` which defines the type of correlation to calculate. By default it is Pearson correlation (```method = "pearson"```) but using Spearman correlation is also possible (```method = "spearman"```).
 
-### Step 2-5. Data integration using CSS
+### Step 2-6. Data integration using CSS
 At the end we would try the last data integration method in this tutorial, which is the extended version of RCA/RSS, which is [cluster similarity spectrum (CSS)](https://github.com/quadbiolab/simspec) developed by our group. Instead of using external reference data set to represent cells in the data by similarities, it firstly does cell clustering to scRNA-seq data of each sample to be integrated, and uses the average expression profiles of the resulted clusters as the reference to calculate these similarities. More detailed description of the method can be seen in this [paper](https://www.biorxiv.org/content/10.1101/2020.02.27.968560v1).
 ```R
 library(simspec)
@@ -743,6 +780,85 @@ Be aware that sometimes existed trajectories may seem to be broken at the embedd
 
 It is worth to mention, that people working on data integration methods have developed quite a few metrics aiming to evaluate and compare performance of different data integratino methods on different data sets **in an objective and quantitative manner**. In general, there are two groups of metrics, focusing on different perspective. The first group focuses on local level mixing, i.e. to evaluate whether neighbors of a cell are distributed in different data sets. One example is [Local Inverse Simpson's Index (LISI)](https://github.com/immunogenomics/LISI), which is used in both the Harmony [paper](https://www.nature.com/articles/s41592-019-0619-0) and the benchmark [paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9).  The second group considers original cell heterogeneity structure of individual data sets, e.g. to check cell type purity of cell clusters after data integration. Examples include [Adjusted rand index (ARI)](https://link.springer.com/article/10.1007/BF01908075), which is also used in the benchmark paper. A good integration should find the best balance of them.
 
-If you are interested in these methods, the benchmark [paper]((https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9)) could be helpful. As mentioned, there are also some quantitative or semi-quantitative measurement of integration performance presented in the [Harmony](https://www.nature.com/articles/s41592-019-0619-0) and [CSS](https://www.biorxiv.org/content/10.1101/2020.02.27.968560v1) papers.
+If you are interested in these methods, the two benchmark papers ([Tran et al.](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9), [Luecken et al.](https://www.biorxiv.org/content/10.1101/2020.05.22.111161v2)) could be helpful. As mentioned, there are also some quantitative or semi-quantitative measurement of integration performance presented in the [Harmony](https://www.nature.com/articles/s41592-019-0619-0) and [CSS](https://www.biorxiv.org/content/10.1101/2020.02.27.968560v1) papers.
 
 
+
+## Now starts Part 3: more optional advanced analysis for scRNA-seq data
+The analysis mentioned above are mostly about scRNA-seq data preprocessing (e.g. normalization, dimension reduction and data integration) as well as the most basic analysis (e.g. clustering and marker identification). Depending on the systems that the scRNA-seq data represents, more analysis can be potentially applied to investigate the relevant biological insight. These analysis include but not limit to pseudotime analysis (which has been mentioned above), differential expression analysis between conditions, RNA velocity analysis, branching point analysis, cell-cell communication analysis with ligand-receptor pairing, and gene regulatory network inferences. In the following section, we will briefly introduce some of those advanced analysis on scRNA-seq data.
+
+### Part 3-1. RNA velocity analysis
+RNA velocity analysis was firstly proposed by La Manno et al. in Sten Linnarsson lab in Karolinska institute and Peter Kharchenko lab in Harvard Medical School in 2018. It is an analysis based on a simple model of transcriptional dynamics. In this model, the transcript number of a certain gene that one can measure in a cell is determined by several processes: transcription, splicing and degradation. Considering that the current mature RNAs represent the current state of the cell, such a state may stay steady if the dynamics of RNA degradation and transcription+splicing reach equilibrium, or it may change over time. Assuming the cell state is not steady, the time lag between transcription and RNA processing (e.g. splicing) make it possible to infer how the cell state is going to change, if the degradation rates of different transcripts are known. Based on this concept, La Manno et al. developped the first algorithm, to use the exonic reads as the proxy of mature RNA transcripts, and the intronic reads as the proxy of the immature RNA transcripts to be spliced. The details of the method can be found in the published [paper](https://www.nature.com/articles/s41586-018-0414-6). The R implementation of this method is available in the [```velocity.R``` package](https://github.com/velocyto-team/velocyto.R).
+
+Based on their work, Bergen et al. in Alexander Wolf lab and Fabian Theis lab in Helmholtz Center Munich further generalized the transcriptional dynamics model estimation procedure, so that it no longer relies on the assumption of steady cell states. The description of the method can be found in the [paper](https://www.nature.com/articles/s41587-020-0591-3). They also developed the python package [```scvelo```](https://scvelo.readthedocs.io/index.html), which is not only methologically more general, but also computationally more efficient.
+
+Next we will use DS1 as the example to show how to apply RNA velocity analysis using the ```scvelo``` package in R, with the help of the python interface provided by the ```reticulate``` package.
+
+As RNA velocity analysis requires the exonic and intronic count matrices separately for the cells, these two matrices need to be generated. Unfortunately, for 10x Genomics scRNA-seq platform which is the most commonly used one right now, its routine preprocessing pipeline [CellRanger](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/what-is-cell-ranger) only counts the transcript number per cell for those overlapping with exonic regions. Therefore, one needs to do extra counting to generate the matrices in need. There are in general two strategies:
+1. Use the CellRanger mapping result (in BAM format) and the gene annotation, generate count matrices with transcript counting software (e.g. [dropEst](https://github.com/kharchenkolab/dropEst)).
+2. Use pseudomapping to generate exonic and intronic count matrices, with tools like [kallisto](https://pachterlab.github.io/kallisto/about).
+
+Here, the example matrices of DS1 was generated with dropEst.
+
+Firstly, let's load the DS1 Seurat object with the above preprocessing being done, as well as the exonic and intronic count matrices in R. The dropEst-generated count matrices include all detected cellular barcodes, so we shall subset only cells included in the Seurat object.
+```R
+library(Seurat)
+library(Matrix)
+
+seurat_DS1 <- readRDS("DS1/seurat_obj_all.rds")
+mats <- readRDS("DS1/mats_dropest.rds")
+mats <- lapply(mats, function(mat) mat[,colnames(seurat_DS1)])
+```
+
+As ```scvelo``` is a python package and doesn't support a Seurat object as the input, we need to store its information in a format that ```scvelo``` supports. Possible format include ```h5ad``` and ```loom```. Here, we use the ```loomR``` package to create a loom file with the information needed (e.g. PCA, UMAP, and cell type annotation) for ```scvelo``` to run.
+```R
+library(loomR)
+cell_attrs <- list(pca = Embeddings(seurat_DS1,"pca")[,1:20],
+                   umap = Embeddings(seurat_DS1,"umap"),
+                   celltype = seurat_DS1@active.ident)
+shared_genes <- intersect(rownames(mats$exon),rownames(mats$intron))
+loom <- loomR::create("DS1/loom_obj.loom",
+                      data = mats$exon[shared_genes,],
+                      layers = list(spliced = mats$exon[shared_genes,],
+                                    unspliced = mats$intron[shared_genes,]),
+                      cell.attrs = cell_attrs)
+loom$close_all()
+```
+<span style="font-size:0.8em">*P.S. To install [loomR](https://github.com/mojaveazure/loomR), one can use devtools as following ```devtools::install_github(repo = "mojaveazure/loomR", ref = "develop")```*</span>
+
+These operations generate a new file (DS1/loom_obj.loom) which can be then used as the input to run ```scvelo```. One has the option to then swtich to Python (>=3.6) with ```scvelo``` installed to do the next steps. If you want to stay in R, you need the R package called ```reticulate```. This [package](https://rstudio.github.io/reticulate/), developed by RStudio, provides the R interface to Python, so that one can easily run Python scripts in the R environment. In principle, it should have been installed when the ```Seurat``` package was installed. One can make sure by explicitly installing it with ```install.packages(reticulate)```. One can also install the develop branch of ```reticulate``` with ```remotes::install_github("rstudio/reticulate")```.
+
+Please be aware that ```reticulate``` only provides the interface to Python, not the Python itself. Therefore, one still need to install a Python (>=3.6) which can be called by ```reticulate```. Next, we import the ```reticulate``` package, install the ```scvelo``` package, and import it to the R environment.
+```R
+library(reticulate)
+py_install("scvelo", pip=T)
+scvelo <- import("scvelo")
+```
+If you don't see any error, you have ```scvelo``` successfully installed in your Python and also have it imported. Next, it's time to run the RNA velocity.
+```R
+adata_DS1 <- scvelo$read_loom("DS1/loom_obj.loom") # load the loom file
+scvelo$pp$filter_and_normalize(adata_DS1,
+                               min_shared_counts=as.integer(10),
+                               n_top_genes=as.integer(3000))
+scvelo$pp$moments(adata_DS1,
+                  n_neighbors = as.integer(30),
+                  use_rep = "pca")
+scvelo$tl$velocity(adata_DS1)
+scvelo$tl$velocity_graph(adata_DS1)
+```
+<span style="font-size:0.8em">*P.S. You may have noticed the ```as.integer``` function. This is used because Python is type-sensitive and the called Python function expects an integer rather than a float number. However, numbers are considered as double float type by default in R, so it would return errors if the values are not converted to integer explicitly with ```as.integer```.*</span>
+
+There are parameters that one can change and tune in scvelo. Also with velocity estimated, one can do more analysis with ```scvelo```, e.g. velocity pseudotime estimation; but these are out of the scope of this tutorial. To get more details, please visit the scvelo manual page (https://scvelo.readthedocs.io/index.html). At the end of this part, let's visualize the velocity estimates.
+```R
+plt <- import("matplotlib")
+plt$use("Agg", force = TRUE)
+scvelo$pl$velocity_embedding_stream(adata_DS1,
+                                    basis="umap",
+                                    color="celltype",
+                                    dpi=120,
+                                    figsize = c(8,8),
+                                    save="DS1_scvelo_stream.png")
+```
+This generates a PNG image in the figures subfolder (figures/DS1_scvelo_stream.png)
+<img src="images/scvelo_DS1_scvelo_stream.png" align="centre" /><br/><br/>
+See the nice arrows! They point out the estimated cell state transitions and one can clearly see the transition from NPC to neurons, which indicates the neuron differentiation and neuron maturation processes.

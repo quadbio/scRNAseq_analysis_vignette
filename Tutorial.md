@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2021-03-09
+#### Updated on 2021-03-10
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -31,6 +31,7 @@
     * [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
   * [Now starts Part 3: more optional advanced analysis for scRNA-seq data](#now-starts-part-3-more-optional-advanced-analysis-for-scrna-seq-data)
     * [Part 3-1. RNA velocity analysis](#part-3-1-rna-velocity-analysis)
+    * [Part 3-2. Cell communication analysis](#part-3-2-cell-communication-analysis)
 
 
 ## Introduction
@@ -788,9 +789,9 @@ If you are interested in these methods, the two benchmark papers ([Tran et al.](
 The analysis mentioned above are mostly about scRNA-seq data preprocessing (e.g. normalization, dimension reduction and data integration) as well as the most basic analysis (e.g. clustering and marker identification). Depending on the systems that the scRNA-seq data represents, more analysis can be potentially applied to investigate the relevant biological insight. These analysis include but not limit to pseudotime analysis (which has been mentioned above), differential expression analysis between conditions, RNA velocity analysis, branching point analysis, cell-cell communication analysis with ligand-receptor pairing, and gene regulatory network inferences. In the following section, we will briefly introduce some of those advanced analysis on scRNA-seq data.
 
 ### Part 3-1. RNA velocity analysis
-RNA velocity analysis was firstly proposed by La Manno et al. in Sten Linnarsson lab in Karolinska institute and Peter Kharchenko lab in Harvard Medical School in 2018. It is an analysis based on a simple model of transcriptional dynamics. In this model, the transcript number of a certain gene that one can measure in a cell is determined by several processes: transcription, splicing and degradation. Considering that the current mature RNAs represent the current state of the cell, such a state may stay steady if the dynamics of RNA degradation and transcription+splicing reach equilibrium, or it may change over time. Assuming the cell state is not steady, the time lag between transcription and RNA processing (e.g. splicing) make it possible to infer how the cell state is going to change, if the degradation rates of different transcripts are known. Based on this concept, La Manno et al. developped the first algorithm, to use the exonic reads as the proxy of mature RNA transcripts, and the intronic reads as the proxy of the immature RNA transcripts to be spliced. The details of the method can be found in the published [paper](https://www.nature.com/articles/s41586-018-0414-6). The R implementation of this method is available in the [```velocity.R``` package](https://github.com/velocyto-team/velocyto.R).
+RNA velocity analysis was firstly proposed by La Manno et al. in Sten Linnarsson lab in Karolinska institute and Peter Kharchenko lab in Harvard Medical School in 2018. It is an analysis based on a simple model of transcriptional dynamics. In this model, the transcript number of a certain gene that one can measure in a cell is determined by several processes: transcription, splicing and degradation. Considering that the current mature RNAs represent the current state of the cell, such a state may stay steady if the dynamics of RNA degradation and transcription+splicing reach equilibrium, or it may change over time. Assuming the cell state is not steady, the time lag between transcription and RNA processing (e.g. splicing) make it possible to infer how the cell state is going to change, if the degradation rates of different transcripts are known. Based on this concept, La Manno et al. developed the first algorithm, to use the exonic reads as the proxy of mature RNA transcripts, and the intronic reads as the proxy of the immature RNA transcripts to be spliced. The details of the method can be found in the published [paper](https://www.nature.com/articles/s41586-018-0414-6). The R implementation of this method is available in the [```velocity.R``` package](https://github.com/velocyto-team/velocyto.R).
 
-Based on their work, Bergen et al. in Alexander Wolf lab and Fabian Theis lab in Helmholtz Center Munich further generalized the transcriptional dynamics model estimation procedure, so that it no longer relies on the assumption of steady cell states. The description of the method can be found in the [paper](https://www.nature.com/articles/s41587-020-0591-3). They also developed the python package [```scvelo```](https://scvelo.readthedocs.io/index.html), which is not only methologically more general, but also computationally more efficient.
+Based on their work, Bergen et al. in Alexander Wolf lab and Fabian Theis lab in Helmholtz Center Munich further generalized the transcriptional dynamics model estimation procedure, so that it no longer relies on the assumption of steady cell states. The description of the method can be found in the [paper](https://www.nature.com/articles/s41587-020-0591-3). They also developed the python package [```scvelo```](https://scvelo.readthedocs.io/index.html), which is not only methodologically more general, but also computationally more efficient.
 
 Next we will use DS1 as the example to show how to apply RNA velocity analysis using the ```scvelo``` package in R, with the help of the python interface provided by the ```reticulate``` package.
 
@@ -861,4 +862,138 @@ scvelo$pl$velocity_embedding_stream(adata_DS1,
 ```
 This generates a PNG image in the figures subfolder (figures/DS1_scvelo_stream.png)
 <img src="images/scvelo_DS1_scvelo_stream.png" align="centre" /><br/><br/>
-See the nice arrows! They point out the estimated cell state transitions and one can clearly see the transition from NPC to neurons, which indicates the neuron differentiation and neuron maturation processes.
+See the nice arrows! They point out the estimated cell state transitions and one can clearly see the transition from NPC to neurons, which indicates the neuronal differentiation and maturation processes.
+
+### Part 3-2. Cell communication analysis
+The above analysis focus mostly on cell states of single cells. In biology, what can be equally or even more important is communications among different cells. Unfortunately, such communications cannot be directly measured by scRNA-seq data. However, as the communications usually rely on receptor proteins and ligand molecules that specifically bind to its corresponding receptor, given a list of the paired ligand and receptor, it is possible to infer the existence of such communications, assuming that cells/cell types that communicate with each other co-express the interacting ligands and receptors. This is the principle of most of the existed tools to investigate putative cell-cell communications. Among those tools, [CellPhoneDB](https://github.com/Teichlab/cellphonedb), developed by Sarah Teichmann's lab in Wellcome Sanger Institute, is one of the most commonly used one. More details of the method can also been found in the [paper](https://www.nature.com/articles/s41596-020-0292-x).
+
+In this part of the tutorial, we will use DS4 as the example to show how to infer communications between cell types using scRNA-seq data and cellphonedb. Just to mention, DS4 is not about cerebral organoid, but a subset of developing human duodenum scRNA-seq data presented in this [paper](https://www.biorxiv.org/content/10.1101/2020.07.24.219147v1). It is suggested that the interactions between epithelial and mesenchymal populations are critical for gut development. Therefore, it would be interesting to see whether we can infer such interaction from the scRNA-seq data and identify ligand-receptor pairs contributing to it.
+
+First of all, we need to have CellPhoneDB installed. It is a Python package and one can install it following the tutorial in its github page. If you are a conda user, you can also use conda to manage the environment. For example,
+```shell
+conda create -n env_cellphonedb python=3.7
+conda activate env_cellphonedb
+pip install cellphonedb
+```
+
+Next, we need to generate the input files for CellPhoneDB, which include:
+1. A TSV table of gene expression in single cells (rows as genes, columns as cells)
+2. A TSV table with two columns, the first column being cell IDs (the same as the column names in the expression table), the second column being cell type annotation
+
+Let's load the data into Seurat and take a look at it. Please note that the cell annotation is already included in the provided metadata.
+```R
+library(Seurat)
+library(Matrix)
+library(dplyr)
+
+counts <- readMM("DS4/matrix.mtx.gz")
+metadata <- read.table("DS4/metadata.tsv.gz")
+features <- read.table("DS4/features.tsv.gz")[,1]
+dimnames(counts) <- list(features, rownames(metadata))
+seurat <- CreateSeuratObject(counts = counts, meta.data = metadata)
+
+seurat <- NormalizeData(seurat) %>%
+  FindVariableFeatures(nfeatures = 3000) %>%
+  ScaleData() %>%
+  RunPCA(npcs = 50) %>%
+  RunUMAP(dims=1:20)
+
+UMAPPlot(seurat_int, group.by="Cell_type", label=T) & NoAxes() & NoLegend()
+```
+<img src="images/umap_DS4.png" align="centre" /><br/><br/>
+
+Now it's time to generate the tables that CellPhoneDB requires
+```R
+expr_mat <- as.matrix(seurat@assays$RNA@data)
+write.table(expr_mat, file="DS4/expr.txt", quote=F, sep="\t")
+write.table(data.frame(Cell_bc = colnames(seurat), Cell_type = seurat$Cell_type),
+            file="DS4/metadata.txt", row.names=F, quote=F, sep="\t")
+```
+<span style="font-size:0.8em">*P.S. CellPhoneDB requires the densed expression table being stored in a text file, and this becomes impractical when the scRNA-seq data is big. In that case, one needs to decrease the number of cells for CellPhoneDB to read by e.g. subseting the data. This is not necessary in this example because the data has already been subset.*</span>
+
+Next, we move back to the shell to run CellPhoneDB
+```shell
+# go to the folder with the generated expr.txt and metadata.txt files
+cd DS4
+
+# make sure to activate the cellphonedb conda environment, if conda is used
+conda activate env_cellphonedb
+
+# run cellphonedb
+cellphonedb method statistical_analysis --counts-data gene_name metadata.txt expr.txt
+```
+<span style="font-size:0.8em">*P.S. if you are using the newest numpy package, running CellPhoneDB may return the error of ```AttributeError: type object 'object' has no attribute 'dtype'```. This is because the pandas version which cellphonedb depends on does not work with the latest numpy version (see this page https://github.com/Teichlab/cellphonedb/issues/266). As mentioned in the same page, there are at least two solutions: 1. if the cellphonedb is installed in a conda environment, installing tensorflow with ```conda install tensorflow``` can make sure that a compatible numpy version is installed; 2. downgrade the numpy version ```pip install --force-reinstall numpy==1.19.5```*</span>
+
+CellPhoneDB estimates significance of ligand-receptor interactions between cell types using permutation of cell type labels (by default 1000 times). Therefore, it takes quite some time to get the final results. One needs to be patient here. When it is done, a folder called ```out``` by default is created with the cellphonedb output inside. It should include four files:
+1. deconvoluted.txt
+2. means.txt
+3. pvalues.txt
+4. significant_means.txt
+
+CellPhoneDB has two plotting functions implemented (dotplot and heatmap) that one can try. Alternatively, one can use R to do the plotting. The following example is to plot the number of inferred interacting pairs between every two cell types. Columns represent cell types secreting ligands, while rows represent cell types receiving the signals.
+```R
+library(gplots)
+
+p <- read.csv("DS4_cellphonedb/out/pvalues.txt", header=T, sep="\t", check.names=F)
+num_pairs <- colSums(p[,-(1:11)] < 0.01)
+num_pairs <- data.frame(from = sapply(strsplit(names(num_pairs),"\\|"),"[",1),
+                        to = sapply(strsplit(names(num_pairs),"\\|"),"[",2),
+                        num = num_pairs)
+mat_num_pairs <- sapply(sort(unique(num_pairs$from)), function(x)
+  sapply(sort(unique(num_pairs$to)), function(y)
+    num_pairs$num[which(num_pairs$from == x & num_pairs$to == y)]))
+
+bluered_colscheme <- colorRampPalette(c("#4575B4","#9DCEE3","#EFE9C3","#FA9D59","#D73027"))
+heatmap.2(mat_num_pairs, trace="none", scale="none", col = bluered_colscheme(30), key=F, keysize=0.8, margins = c(9,9))
+```
+<img src="images/cpdb_heatmap.png" align="centre" /><br/><br/>
+
+More can be done with the CellPhoneDB output. Here we are going to try another tool called [COMUNET](https://github.com/ScialdoneLab/COMUNET), which is a R package developed by Antonio Scialdone's lab in Helmholtz Zentrum Munich. It provides additional statistics (e.g. clustering of communications) given the CellPhoneDB output. More details can be found in its [paper](https://academic.oup.com/bioinformatics/article/36/15/4296/5836497), and more tutorials are available in its github page.
+
+Now let's go back to R.
+```R
+# install COMUNET
+devtools::install_github("ScialdoneLab/COMUNET/COMUNET")
+# You may fail to install COMUNET with the error of SMDTools being missing and cannot be installed.
+# This is because SMDTools has been removed from the CRAN repository.
+# In that case, one can install the package from its archive, as following
+install.packages("R.utils")
+install.packages("https://cran.r-project.org/src/contrib/Archive/SDMTools/SDMTools_1.1-221.2.tar.gz")
+devtools::install_github("ScialdoneLab/COMUNET/COMUNET")
+
+library(COMUNET)
+# read CellPhoneDB complex and gene info
+complex_input <- read.csv("https://raw.githubusercontent.com/Teichlab/cellphonedb-data/master/data/complex_input.csv")
+complex_input$complex_name <- gsub("_", " ", complex_input$complex_name)
+gene_input <- read.csv("https://raw.githubusercontent.com/Teichlab/cellphonedb-data/master/data/gene_input.csv")
+
+# read CellPhoneDB output
+CellPhoneDB_output <- read.csv("out/significant_means.txt", sep = "\t", check.names = F)
+CellPhoneDB_output <- CellPhoneDB_output[!duplicated(CellPhoneDB_output$interacting_pair),]
+rownames(CellPhoneDB_output) <- CellPhoneDB_output$interacting_pair
+CellPhoneDB_output$receptor_a <- CellPhoneDB_output$receptor_a == "True"
+CellPhoneDB_output$receptor_b <- CellPhoneDB_output$receptor_b == "True"
+
+# Convert to COMUNET format
+interactions <- convert_CellPhoneDB_output(CellPhoneDB_output = CellPhoneDB_output,
+                                           complex_input = complex_input,
+                                           gene_input = gene_input)
+
+# Run communication clusters analysis
+lrp_clusters <- lrp_clustering(weight_array = interactions$weight_array,
+                               ligand_receptor_pair_df = interactions$ligand_receptor_pair_df,
+                               nodes = interactions$nodes)
+
+# Do heatmap
+plot_cluster_heatmap(dissim_matrix = lrp_clusters$dissim_matrix,
+                    lrp_clusters = lrp_clusters$clusters)
+
+# Plot the communication mode of cluster 10 pairs as an example
+cluster <- "cluster 10"
+plot_communication_graph(LRP = cluster,
+                         weight_array = lrp_clusters$weight_array_by_cluster[,,cluster],
+                         ligand_receptor_pair_df = interactions$ligand_receptor_pair_df,
+                         nodes = interactions$nodes,
+                         is_cluster = T)
+```
+![](images/comunet_lrp_heatmap.png) ![](images/comunet_lrp_cluster10.png)

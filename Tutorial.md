@@ -284,17 +284,26 @@ Clustering the cells gives a identity label to each cell, and we can assume that
 2. Identify signature genes, or marker genes, of each identified cell cluster. Based on the identified cluster marker genes, one can do literature search, enrichment analysis or do experiment (or ask people around) for annotation;
 3. For each cluster, compare its gene expression profile with existing reference data.
 
-Obviously, the first method requires some prior knowledge of the system being measured. One needs to have a list of convincing markers which are well accepted by the field. Particularly for the system of the example data set (cerebral organoid), some of the markers have been listed above. Some more markers include 
+Obviously, the first method requires some prior knowledge of the system being measured. One needs to have a list of convincing markers which are well accepted by the field. Particularly for the system of the example data set (cerebral organoid), some of the markers have been listed above. A longer list (never being complete though) includes
+  * NES / SOX2: NPC marker
+  * DCX: neuron marker
+  * FOXG1: telencephalon marker
+  * EMX1: dorsal telencephalon marker
   * GLI3: dorsal telencephalic NPC marker
   * EOMES: dorsal intermediate progenitor (IP) marker
-  * NEUROD6: dorsal excitatory neuron marker
-  * DLX5: ganglionic eminence (GE) marker
+  * NEUROD6 / SLC17A7: dorsal excitatory neuron marker
+  * DLX2 / DLX5: ganglionic eminence (GE) marker
   * ISL1: lateral ganglionic eminence (LGE) inhibitory neuron marker
   * SIX3 / NKX2-1 / SOX6: medial ganglionic eminence (MGE) inhibitory neuron marker
   * NR2F2: caudal ganglionic eminence (CGE) inhibitory neuron marker
-  * RSPO3: diencephalon marker
   * RELN: Cajal-Retzius cell marker
-  * HOXB2 & HOXB5: hindbrain marker
+  * RSPO3 / TCF7L2 / LHX9: diencephalon marker (for different neuron subtypes)
+  * OTX2: midbrain marker
+  * HOXB2 / HOXB5: hindbrain marker
+  * SLC17A6: non-telencephalic excitatory neuron marker
+  * SLC32A1: inhibitory neuron marker
+  * TTR: choroid plexus marker
+  * MKI67: cell cycle G2M phase marker (proliferative cells)
 
 The easiest to visualize expression of marker genes of interest across cell clusters is probably by a heatmap.
 ```R

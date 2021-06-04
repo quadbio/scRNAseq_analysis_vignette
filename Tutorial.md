@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2021-03-10
+#### Updated on 2021-06-04
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -945,17 +945,46 @@ library(gplots)
 
 p <- read.csv("DS4_cellphonedb/out/pvalues.txt", header=T, sep="\t", check.names=F)
 num_pairs <- colSums(p[,-(1:11)] < 0.01)
+num_pairs <- data.frame(partner1 = sapply(strsplit(names(num_pairs),"\\|"),"[",1),
+                        partner2 = sapply(strsplit(names(num_pairs),"\\|"),"[",2),
+                        num = num_pairs)
+mat_num_pairs <- sapply(sort(unique(num_pairs$partner1)), function(x)
+  sapply(sort(unique(num_pairs$partner2)), function(y)
+    num_pairs$num[which(num_pairs$partner1 == x & num_pairs$partner2 == y)]))
+
+bluered_colscheme <- colorRampPalette(c("#4575B4","#9DCEE3","#EFE9C3","#FA9D59","#D73027"))
+heatmap.2(mat_num_pairs + t(mat_num_pairs) - diag(diag(mat_num_pairs)),
+          trace="none", scale="none", col = bluered_colscheme(30), key=F, keysize=0.8, margins = c(9,9))
+```
+<img src="images/cpdb_heatmap1.png" align="centre" /><br/><br/>
+
+One can also separate source and target based on the information in the CellPhoneDB output
+```R
+p <- p[p$secreted=="True" &
+         ((p$receptor_a == "True" & p$receptor_b == "False") |
+          (p$receptor_a == "False" & p$receptor_b == "True")),]
+
+idx <- which(p$receptor_a == "False")
+num_pairs <- colSums(p[idx,-(1:11)] < 0.05)
 num_pairs <- data.frame(from = sapply(strsplit(names(num_pairs),"\\|"),"[",1),
                         to = sapply(strsplit(names(num_pairs),"\\|"),"[",2),
                         num = num_pairs)
+idx <- which(p$receptor_a == "True")
+num_pairs_2 <- colSums(p[idx,-(1:11)] < 0.05)
+num_pairs_2 <- data.frame(from = sapply(strsplit(names(num_pairs_2),"\\|"),"[",2),
+                          to = sapply(strsplit(names(num_pairs_2),"\\|"),"[",1),
+                          num = num_pairs_2)
+num_pairs$num <- num_pairs$num + num_pairs_2$num
 mat_num_pairs <- sapply(sort(unique(num_pairs$from)), function(x)
   sapply(sort(unique(num_pairs$to)), function(y)
     num_pairs$num[which(num_pairs$from == x & num_pairs$to == y)]))
 
 bluered_colscheme <- colorRampPalette(c("#4575B4","#9DCEE3","#EFE9C3","#FA9D59","#D73027"))
-heatmap.2(mat_num_pairs, trace="none", scale="none", col = bluered_colscheme(30), key=F, keysize=0.8, margins = c(9,9))
+heatmap.2(mat_num_pairs,
+          trace="none", scale="none", col = bluered_colscheme(30), key=F, keysize=0.8, margins = c(9,9),
+          xlab="FROM", ylab="TO")
 ```
-<img src="images/cpdb_heatmap.png" align="centre" /><br/><br/>
+<img src="images/cpdb_heatmap2.png" align="centre" /><br/><br/>
 
 More can be done with the CellPhoneDB output. Here we are going to try another tool called [COMUNET](https://github.com/ScialdoneLab/COMUNET), which is a R package developed by Antonio Scialdone's lab in Helmholtz Zentrum Munich. It provides additional statistics (e.g. clustering of communications) given the CellPhoneDB output. More details can be found in its [paper](https://academic.oup.com/bioinformatics/article/36/15/4296/5836497), and more tutorials are available in its github page.
 

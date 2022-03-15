@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2021-06-04
+#### Updated on 2022-03-15
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -30,8 +30,9 @@
     * [Step 2-6. Data integration using CSS](#step-2-6-data-integration-using-css)
     * [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
   * [Now starts Part 3: more optional advanced analysis for scRNA-seq data](#now-starts-part-3-more-optional-advanced-analysis-for-scrna-seq-data)
-    * [Part 3-1. RNA velocity analysis](#part-3-1-rna-velocity-analysis)
-    * [Part 3-2. Cell communication analysis](#part-3-2-cell-communication-analysis)
+    * [Part 3-1. Cluster connectivity analysis with PAGA](#part-3-1-cluster-connectivity-analysis-with-paga)
+    * [Part 3-2. RNA velocity analysis](#part-3-2-rna-velocity-analysis)
+    * [Part 3-3. Cell communication analysis](#part-3-3-cell-communication-analysis)
 
 
 ## Introduction
@@ -169,7 +170,7 @@ seurat <- SCTransform(seurat,
                       variable.features.n = 3000)
 ```
 This operation combines normalization, scaling and highly variable feature identification so it essentially replaces steps 3-5 from above. Drawbacks of running ```SCTransform``` include
-1. It is slow.
+1. It is relatively slow.
 2. It makes the normalized expression measurements data-dependent. In the standard procedure, the normalization only relies on the cell itself; in ```SCTransform```, however, information from the other cells in the same data set is involved during normalization. This potentially introduces problems when multiple data sets need to be compared, since the normalized expression measurements of two data sets each individually normalized using ```SCTransform``` are not comparable.
 3. There are steps in ```SCTransform``` which involve random sampling to speed up the computation. That means that there is some stochasticity in ```SCTransform``` and the result is slightly different every time, even if it is applied to the same data set.
 
@@ -244,13 +245,13 @@ plot1 / plot2
 For people who are not familiar with those genes:
   * MKI67: a marker of G2M phase of cell cycle
   * NES: a neural progenitor marker
-  * DCX: a pan-neuron marker
+  * DCX: a pan-(immature) neuron marker
   * FOXG1: a telencephalon marker
   * DLX2: a ventral telencephalon marker
   * EMX1: a dorsal telencephalon (cortex) marker
-  * OTX2: a diencephalon and midbrain inhibitory neuron marker
-  * LHX9: a diencephalon and midbrain excitatory neuron marker
-  * TFAP2A: a midbrain-hindbrain boundary and hindbrain marker
+  * OTX2: a midbrain and diencephalon neuron marker
+  * LHX9: a diencephalon and midbrain neuron marker
+  * TFAP2A: a midbrain-hindbrain boundary marker
 
 So now we have some idea about what kinds of cells exist in this data.
 
@@ -288,22 +289,30 @@ Obviously, the first method requires some prior knowledge of the system being me
   * NES / SOX2: NPC marker
   * DCX: neuron marker
   * FOXG1: telencephalon marker
-  * EMX1: dorsal telencephalon marker
-  * GLI3: dorsal telencephalic NPC marker
-  * EOMES: dorsal intermediate progenitor (IP) marker
-  * NEUROD6 / SLC17A7: dorsal excitatory neuron marker
+  * EMX1: dorsal telencephalon (cortical) marker
+  * GLI3: cortical NPC marker
+  * EOMES: cortical intermediate progenitor (IP) marker
+  * NEUROD6 / SLC17A7: dorsal excitatory (cortical) neuron marker
+  * BCL11B: deeper layer cortical neuron marker
+  * SATB2: upper layer cortical neuron marker
+  * RELN: Cajal-Retzius cell marker
   * DLX2 / DLX5: ganglionic eminence (GE) marker
   * ISL1: lateral ganglionic eminence (LGE) inhibitory neuron marker
-  * SIX3 / NKX2-1 / SOX6: medial ganglionic eminence (MGE) inhibitory neuron marker
+  * NKX2-1: medial ganglionic eminence (MGE) inhibitory neuron marker
   * NR2F2: caudal ganglionic eminence (CGE) inhibitory neuron marker
-  * RELN: Cajal-Retzius cell marker
   * RSPO3 / TCF7L2 / LHX9: diencephalon marker (for different neuron subtypes)
   * OTX2: midbrain marker
   * HOXB2 / HOXB5: hindbrain marker
   * SLC17A6: non-telencephalic excitatory neuron marker
-  * SLC32A1: inhibitory neuron marker
+  * SLC32A1 / GAD1 / GAD2: inhibitory neuron marker
   * TTR: choroid plexus marker
+  * GFAP: astrocyte marker
+  * OLIG1: oligodendrocyte precursor cell marker
+  * AIF1: microglia marker
+  * CLDN5: endothelial cell marker
   * MKI67: cell cycle G2M phase marker (proliferative cells)
+
+<span style="font-size:0.8em">*P.S. Be careful! Many of those genes are not only expressed in the listed cell types. For instance, many ventral telen. neurons also express BCL11B, which is a famous deeper layer cortical neuron marker. Therefore, when doing the annotation, one needs to look at combinations of markers. For instance, only if the BCL11B+ cells also express EMX1 and NEUROD6, they would be annotated as deeper layer cortical neurons.*</span>
 
 The easiest to visualize expression of marker genes of interest across cell clusters is probably by a heatmap.
 ```R
@@ -388,7 +397,7 @@ td {
 | 1 | Midbrain-hindbrain boundary neuron |
 | 2 | Dorsal telen. neuron |
 | 3 | Dien. and midbrain excitatory neuron |
-| 4 | MGE neuron |
+| 4 | MGE-like neuron |
 | 5 | G2M dorsal telen. NPC |
 | 6 | Dorsal telen. IP |
 | 7 | Dien. and midbrain NPC |
@@ -407,7 +416,7 @@ new_ident <- setNames(c("Dorsal telen. NPC",
                         "Midbrain-hindbrain boundary neuron",
                         "Dorsal telen. neuron",
                         "Dien. and midbrain excitatory neuron",
-                        "MGE neuron","G2M dorsal telen. NPC",
+                        "MGE-like neuron","G2M dorsal telen. NPC",
                         "Dorsal telen. IP","Dien. and midbrain NPC",
                         "Dien. and midbrain IP and excitatory early neuron",
                         "G2M Dien. and midbrain NPC",
@@ -797,12 +806,94 @@ If you are interested in these methods, the two benchmark papers ([Tran et al.](
 ## Now starts Part 3: more optional advanced analysis for scRNA-seq data
 The analysis mentioned above are mostly about scRNA-seq data preprocessing (e.g. normalization, dimension reduction and data integration) as well as the most basic analysis (e.g. clustering and marker identification). Depending on the systems that the scRNA-seq data represents, more analysis can be potentially applied to investigate the relevant biological insight. These analysis include but not limit to pseudotime analysis (which has been mentioned above), differential expression analysis between conditions, RNA velocity analysis, branching point analysis, cell-cell communication analysis with ligand-receptor pairing, and gene regulatory network inferences. In the following section, we will briefly introduce some of those advanced analysis on scRNA-seq data.
 
-### Part 3-1. RNA velocity analysis
+### Part 3-1. Cluster connectivity analysis with PAGA
+The clustering analysis described above is the most commonly used way to summarize the cell type/state heterogeneity in the data. However, the basic clustering analysis does not provide the information about how each cluster of cells may have connected with each other. This is very important for understanding dynamical systems related to development and regeneration, for instance. There are different ways to complement this issue. One option is to do branching analysis, which instead of defining clusters, describes the cell type/state landscape as a tree, with the very initial cell state as the root and every time when two different cell types/states are derived from the same ancestor state, a branching point is defined. There are quite some tools available for this branching analysis, with the most commonly used ones including [monocle/monocle2/monocle3](https://cole-trapnell-lab.github.io/monocle3/), [URD](https://schierlab.biozentrum.unibas.ch/urd), and [Slingshot](https://bioconductor.org/packages/release/bioc/html/slingshot.html). Actually, the branch analysis is usually coupled with pseudotime reconstruction, both as parts of the trajectory analysis. Therefore, those tools for branching analysis usually contain the function to estimate pseudotimes; and many tools developed to generate pseudotimes, e.g. diffusion map as described above, also include the function to identify branching points.
+
+Besides the branching analysis, another strategy is to rely on the clustering results, and apply certain statistcs to evaluate the strength of connectivity between every two clusters. In most of the time, this connectivity is defined by how likely cells in one cluster being one of the nearest neighbors of a cell in another cluster. The most commonly used tool for this analysis is [PAGA](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1663-x) developed by Fabian Theis lab in Helmholtz Center Munich, which is included as a part of the ```scanpy``` toolkit in Python.
+
+Next, we will use DS1 as the example to show how to run PAGA using the ```scanpy``` package in R, with the help of the Python interface provided by the ```reticulate``` package.
+
+First, we should load the DS1 Seurat object with the above preprocessing being done.
+```R
+library(Seurat)
+library(Matrix)
+seurat_DS1 <- readRDS("DS1/seurat_obj_all.rds")
+```
+
+As ```scanpy``` is a python package and doesn't support a Seurat object as the input, we need to store its information in a format that ```scanpy``` supports. Possible format include ```h5ad``` and ```loom```. Following is the example we use the ```loomR``` package to create a loom file with the information needed (e.g. PCA, UMAP, and cell type annotation).
+```R
+library(loomR)
+cell_attrs <- list(pca = Embeddings(seurat_DS1,"pca")[,1:20],
+                   umap = Embeddings(seurat_DS1,"umap"),
+                   celltype = seurat_DS1@active.ident)
+loom <- loomR::create("DS1/loom_obj.loom",
+                      data = seurat_DS1[['RNA']]@data,
+                      layers = list(counts = seurat[['RNA']]@counts),
+                      cell.attrs = cell_attrs)
+loom$close_all()
+```
+<span style="font-size:0.8em">*P.S. To install [loomR](https://github.com/mojaveazure/loomR), one can use devtools as following ```devtools::install_github(repo = "mojaveazure/loomR", ref = "develop")```*</span>
+
+These operations generate a new file (DS1/loom_obj.loom) which can be then used as the input to run ```scanpy```.
+
+Alternatively, one can use the ```anndata``` package to create a h5ad file with similar information. Now this is actually more recommended, as anndata is more accepted as the default file format for many scRNA-seq analysis tools in Python, such as ```scanpy```, ```scvelo```, and ```cellrank```.
+```R
+library(anndata)
+adata <- AnnData(X = t(seurat_DS1[['RNA']]@data),
+                 obs = data.frame(celltype = seurat_DS1@active.ident, row.names = colnames(seurat_DS1)),
+                 var = seurat_DS1[['RNA']]@meta.features,
+                 layers = list(counts = t(seurat_DS1[['RNA']]@counts)),
+                 obsm = list(pca = Embeddings(seurat_DS1,"pca")[,1:20],
+                             umap = Embeddings(seurat_DS1,"umap"))
+                )
+adata$write_h5ad("DS1/anndata_obj.h5ad")
+```
+<span style="font-size:0.8em">*P.S. Installing ```anndata``` can be easily done via ```install.packages("anndata")```*</span>
+
+These generate the new file DS1/anndata_obj.h5ad which can also be used as the input to run ```scanpy```.
+
+Next, one has the option to then swtich to Python (>=3.6) with ```scanpy``` installed to do the next steps. If you want to stay in R, you need the R package called ```reticulate```. This [package](https://rstudio.github.io/reticulate/), developed by RStudio, provides the R interface to Python, so that one can easily run Python scripts in the R environment. In principle, it should have been installed when the ```Seurat``` package was installed. One can make sure by explicitly installing it with ```install.packages(reticulate)```. One can also install the develop branch of ```reticulate``` with ```remotes::install_github("rstudio/reticulate")```.
+
+Please be aware that ```reticulate``` only provides the interface to Python, not the Python itself. Therefore, one still need to install a Python (>=3.6) which can be called by ```reticulate```. Next, we import the ```reticulate``` package, install the ```scanpy``` package, and import it to the R environment.
+```R
+library(reticulate)
+py_install("scanpy", pip=T)
+sc <- import("scanpy")
+```
+If you don't see any error, you have ```scanpy``` successfully installed in your Python and also have it imported. As mentioned above, ```scanpy``` is a comprehensive toolkit for scRNA-seq data analysis, similar to Seurat but implemented in Python. It therefore contains a lot more functionalities than just PAGA. Here, we just use the PAGA analysis in the package, and rely on the Seurat analysis result to provide the information needed.
+```R
+adata_DS1 <- sc$read_loom("DS1/loom_obj.loom") # option1: load the loom file
+adata_DS1 <- sc$read("DS1/anndata_obj.h5ad") # option2: load the h5ad file
+
+sc$pp$neighbors(adata_DS1, n_neighbors=20L, use_rep='pca')
+sc$tl$paga(adata_DS1, groups='celltype')
+adata_DS1$write_h5ad("DS1/anndata_obj.h5ad")
+```
+The rationale of PAGA is to firstly construct a k-nearest neighbor network of cells using the provided dimension reduction matrix (in the example it is 'pca'), and then count the number of edges connecting two cell clusters. This number will be then compared with the expected edge number in a random network to estimate the PAGA connectivity between the two clusters. The resulted connectivity is a value between 0 and 1, with 0 meaning no connectivity and 1 meaning full connectivity. It is therefore straightforward to see that critical parameters that could have affected the PAGA results, besides the clustering result, include 1) the dimension reduction used to identify cell neighbors (the ```use_rep``` parameter in the ```neighbors``` function) and 2) the number of neighbors per cell (the ```n_neighbors``` parameter). It is also worth mentioning that there are additional parameters in the ```neighbors``` function, e.g. the ```method``` parameter to determine the method to quantify cell connectivity, and the ```metric``` parameter to determine the type of distance being calculated between cells, which could lead to changes of the neighboring network, and therefore the PAGA result.
+
+Next, we can plot the PAGA estimated cluster connectivity.
+```R
+plt <- import("matplotlib")
+plt$use("Agg", force = TRUE)
+sc$pl$paga(adata_DS1,
+           color='celltype',
+           fontsize=7,
+           frameon=FALSE,
+           save="DS1_paga.png")
+```
+This generates a PNG image in the figures subfolder (figures/DS1_paga.png)
+<img src="images/paga_DS1_paga.png" align="centre" /><br/><br/>
+It is not perfect, but one can see that the summarized graph on the cluster level somehow recapitulates the general heterogeneity of the data set. Many of those thickest edges with the strongest connectivity between two clusters, indeed represent the differentiation process, e.g. the strong connectivity between dorsal telen. IP and dorsal telen. neurons.
+
+<span style="font-size:0.8em">*P.S. When running with reticulate, it is possible to encounter errors like ```ImportError: /lib64/libstdc++.so.6: version `CXXABI_1.3.8' not found```. That is due to the C version conflict between the one in the system that being used in R, and the one used in the conda environment that reticulate thought to be used. In that case, running PAGA in Python directly would be the easiest solution.*</span>
+
+
+### Part 3-2. RNA velocity analysis
 RNA velocity analysis was firstly proposed by La Manno et al. in Sten Linnarsson lab in Karolinska institute and Peter Kharchenko lab in Harvard Medical School in 2018. It is an analysis based on a simple model of transcriptional dynamics. In this model, the transcript number of a certain gene that one can measure in a cell is determined by several processes: transcription, splicing and degradation. Considering that the current mature RNAs represent the current state of the cell, such a state may stay steady if the dynamics of RNA degradation and transcription+splicing reach equilibrium, or it may change over time. Assuming the cell state is not steady, the time lag between transcription and RNA processing (e.g. splicing) make it possible to infer how the cell state is going to change, if the degradation rates of different transcripts are known. Based on this concept, La Manno et al. developed the first algorithm, to use the exonic reads as the proxy of mature RNA transcripts, and the intronic reads as the proxy of the immature RNA transcripts to be spliced. The details of the method can be found in the published [paper](https://www.nature.com/articles/s41586-018-0414-6). The R implementation of this method is available in the [```velocity.R``` package](https://github.com/velocyto-team/velocyto.R).
 
 Based on their work, Bergen et al. in Alexander Wolf lab and Fabian Theis lab in Helmholtz Center Munich further generalized the transcriptional dynamics model estimation procedure, so that it no longer relies on the assumption of steady cell states. The description of the method can be found in the [paper](https://www.nature.com/articles/s41587-020-0591-3). They also developed the python package [```scvelo```](https://scvelo.readthedocs.io/index.html), which is not only methodologically more general, but also computationally more efficient.
 
-Next we will use DS1 as the example to show how to apply RNA velocity analysis using the ```scvelo``` package in R, with the help of the python interface provided by the ```reticulate``` package.
+Next we will use DS1 as the example to show how to apply RNA velocity analysis using the ```scvelo``` package in R, similar to above with PAGA.
 
 As RNA velocity analysis requires the exonic and intronic count matrices separately for the cells, these two matrices need to be generated. Unfortunately, for 10x Genomics scRNA-seq platform which is the most commonly used one right now, its routine preprocessing pipeline [CellRanger](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/what-is-cell-ranger) only counts the transcript number per cell for those overlapping with exonic regions. Therefore, one needs to do extra counting to generate the matrices in need. There are in general two strategies:
 1. Use the CellRanger mapping result (in BAM format) and the gene annotation, generate count matrices with transcript counting software (e.g. [dropEst](https://github.com/kharchenkolab/dropEst)).
@@ -820,25 +911,39 @@ mats <- readRDS("DS1/mats_dropest.rds")
 mats <- lapply(mats, function(mat) mat[,colnames(seurat_DS1)])
 ```
 
-As ```scvelo``` is a python package and doesn't support a Seurat object as the input, we need to store its information in a format that ```scvelo``` supports. Possible format include ```h5ad``` and ```loom```. Here, we use the ```loomR``` package to create a loom file with the information needed (e.g. PCA, UMAP, and cell type annotation) for ```scvelo``` to run.
+Next, we need to create the loom or h5ad file which contains the information we need for running ```scvelo```. This is very similar to above for PAGA, but the spliced and unspliced data matrix would have to be used.
+
+The following is how to create the loom file:
 ```R
 library(loomR)
 cell_attrs <- list(pca = Embeddings(seurat_DS1,"pca")[,1:20],
                    umap = Embeddings(seurat_DS1,"umap"),
                    celltype = seurat_DS1@active.ident)
 shared_genes <- intersect(rownames(mats$exon),rownames(mats$intron))
-loom <- loomR::create("DS1/loom_obj.loom",
+loom <- loomR::create("DS1/loom_obj_scvelo.loom",
                       data = mats$exon[shared_genes,],
                       layers = list(spliced = mats$exon[shared_genes,],
                                     unspliced = mats$intron[shared_genes,]),
                       cell.attrs = cell_attrs)
 loom$close_all()
 ```
-<span style="font-size:0.8em">*P.S. To install [loomR](https://github.com/mojaveazure/loomR), one can use devtools as following ```devtools::install_github(repo = "mojaveazure/loomR", ref = "develop")```*</span>
+Following is the way to create the h5ad file:
+```R
+library(anndata)
+adata <- AnnData(X = t(mats$exon[shared_genes,]),
+                 obs = seurat_DS1@meta.data,
+                 var = NULL,
+                 layers = list(spliced = t(mats$exon[shared_genes,]),
+                               unspliced = t(mats$intron[shared_genes,])),
+                 obsm = list(pca = Embeddings(seurat_DS1,"pca")[,1:20],
+                             umap = Embeddings(seurat_DS1,"umap"))
+                )
+adata$write_h5ad("DS1/anndata_obj_scvelo.h5ad")
+```
 
-These operations generate a new file (DS1/loom_obj.loom) which can be then used as the input to run ```scvelo```. One has the option to then swtich to Python (>=3.6) with ```scvelo``` installed to do the next steps. If you want to stay in R, you need the R package called ```reticulate```. This [package](https://rstudio.github.io/reticulate/), developed by RStudio, provides the R interface to Python, so that one can easily run Python scripts in the R environment. In principle, it should have been installed when the ```Seurat``` package was installed. One can make sure by explicitly installing it with ```install.packages(reticulate)```. One can also install the develop branch of ```reticulate``` with ```remotes::install_github("rstudio/reticulate")```.
+And then, similar to when doing PAGA analysis, one can swtich to Python (>=3.6) with ```scvelo``` installed to do the next steps, or to use the ```reticulate``` R package.
 
-Please be aware that ```reticulate``` only provides the interface to Python, not the Python itself. Therefore, one still need to install a Python (>=3.6) which can be called by ```reticulate```. Next, we import the ```reticulate``` package, install the ```scvelo``` package, and import it to the R environment.
+Next, we import the ```reticulate``` package, install the ```scvelo``` package, and import it to the R environment.
 ```R
 library(reticulate)
 py_install("scvelo", pip=T)
@@ -846,7 +951,9 @@ scvelo <- import("scvelo")
 ```
 If you don't see any error, you have ```scvelo``` successfully installed in your Python and also have it imported. Next, it's time to run the RNA velocity.
 ```R
-adata_DS1 <- scvelo$read_loom("DS1/loom_obj.loom") # load the loom file
+adata_DS1 <- scvelo$read_loom("DS1/loom_obj_scvelo.loom") # option1: load the loom file
+adata_DS1 <- scvelo$read("DS1/anndata_obj_scvelo.h5ad") # option2: load the h5ad file
+
 scvelo$pp$filter_and_normalize(adata_DS1,
                                min_shared_counts=as.integer(10),
                                n_top_genes=as.integer(3000))
@@ -873,7 +980,10 @@ This generates a PNG image in the figures subfolder (figures/DS1_scvelo_stream.p
 <img src="images/scvelo_DS1_scvelo_stream.png" align="centre" /><br/><br/>
 See the nice arrows! They point out the estimated cell state transitions and one can clearly see the transition from NPC to neurons, which indicates the neuronal differentiation and maturation processes.
 
-### Part 3-2. Cell communication analysis
+<span style="font-size:0.8em">*P.S. You may have expected some interactions between ```scvelo``` and ```scanpy```, as they are developed by the same group. And you are right! For instance, in the PAGA function there is one parameter called ```use_rna_velocity```, which is False by default. However, if your anndata object contains the RNA velocity results by ```scvelo```, you can set this parameter to True, and PAGA will then run based on the directed cell graph estimated by the RNA velocity analysis.*</span>
+
+
+### Part 3-3. Cell communication analysis
 The above analysis focus mostly on cell states of single cells. In biology, what can be equally or even more important is communications among different cells. Unfortunately, such communications cannot be directly measured by scRNA-seq data. However, as the communications usually rely on receptor proteins and ligand molecules that specifically bind to its corresponding receptor, given a list of the paired ligand and receptor, it is possible to infer the existence of such communications, assuming that cells/cell types that communicate with each other co-express the interacting ligands and receptors. This is the principle of most of the existed tools to investigate putative cell-cell communications. Among those tools, [CellPhoneDB](https://github.com/Teichlab/cellphonedb), developed by Sarah Teichmann's lab in Wellcome Sanger Institute, is one of the most commonly used one. More details of the method can also been found in the [paper](https://www.nature.com/articles/s41596-020-0292-x).
 
 In this part of the tutorial, we will use DS4 as the example to show how to infer communications between cell types using scRNA-seq data and cellphonedb. Just to mention, DS4 is not about cerebral organoid, but a subset of developing human duodenum scRNA-seq data presented in this [paper](https://www.biorxiv.org/content/10.1101/2020.07.24.219147v1). It is suggested that the interactions between epithelial and mesenchymal populations are critical for gut development. Therefore, it would be interesting to see whether we can infer such interaction from the scRNA-seq data and identify ligand-receptor pairs contributing to it.

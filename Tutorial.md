@@ -34,7 +34,7 @@
     * [Method 1-1. Transcriptome similarity on cell cluster level](#method-1-1-transcriptome-similarity-on-cell-cluster-level)
     * [Method 1-2. Transcriptome similarity on cell level](#method-1-2-transcriptome-similarity-on-cell-level)
     * [Method 2. Seurat-based label transfer](#method-2-seurat-based-label-transfer)
-    * [Other methods](#other-methods)
+    * [Other methods, and more to say](#other-methods-and-more-to-say)
   * [Now starts Part 4: more optional advanced analysis for scRNA-seq data](#now-starts-part-4-more-optional-advanced-analysis-for-scrna-seq-data)
     * [Part 4-1. Cluster connectivity analysis with PAGA](#part-4-1-cluster-connectivity-analysis-with-paga)
     * [Part 4-2. RNA velocity analysis](#part-4-2-rna-velocity-analysis)
@@ -974,8 +974,10 @@ heatmap.2(pred_scores_sum2cl, scale="none", trace="none", key=F, keysize=0.5, ma
 <img src="images/heatmap_anchor_prediction_sum2clusters.png" align="centre" /><br/><br/>
 
 
-### Other methods
+### Other methods, and more to say
 Above we only introduce two (or three) methods, but there are of course more. For instance, some integration methods, such as CSS and Harmony mentioned above, supports query data projection to the reference data (natively supported by CSS, and [Symphony](https://github.com/immunogenomics/symphony) for Harmony-integrated reference). The limitation, though, is that the reference data would have to be processed using those methods. There are also deep-learning-based models which can be used to represent a given reference data set, and then being applied to other data sets for query. Examples include [Sfaira](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02452-6) developed by the Theis lab. Obviously, this also requires the reference data being processed with the framework. All those methods could work better than the introduced methods in some scenarios, while the two/three being introduced here don't have much limitation on analysis being done with the reference data set, and therefore would be the ones we usually try first.
+
+One issue that we should always to keep in mind is that the above analysis actually assume that the reference data set is comprehensive, i.e. it contains all the cell types/states that the query data set contains. This, of course, is not always correct. Therefore, we shouldn't blindly rely on the comparison to the reference without further checking marker gene expression, and/or to use some quantitative metrics to assess how similar the projected cell types/states are to the cell populations we have in the query data.
 
 
 ## Now starts Part 4: more optional advanced analysis for scRNA-seq data

@@ -31,10 +31,10 @@
     * [Step 3. How shall we compare different data integration methods](#step-3-how-shall-we-compare-different-data-integration-methods)
   * [Now starts Part 3: when you have an annotated reference data set and want it to facilitate the analysis of a new data](#now-starts-part-3-when-you-have-an-annotated-reference-data-set-and-want-it-to-facilitate-the-analysis-of-a-new-data)
     * [Step 0. Load data](#step-0-load-data)
-    * [Strategy 1-1. Transcriptome similarity on cell cluster level](#strategy-1-1-transcriptome-similarity-on-cell-cluster-level)
-    * [Strategy 1-2. Transcriptome similarity on cell level](#strategy-1-2-transcriptome-similarity-on-cell-level)
-    * [Strategy 2. Seurat-based label transfer](#strategy-2-seurat-based-label-transfer)
-    * [There are others](#there-are-others)
+    * [Method 1-1. Transcriptome similarity on cell cluster level](#method-1-1-transcriptome-similarity-on-cell-cluster-level)
+    * [Method 1-2. Transcriptome similarity on cell level](#method-1-2-transcriptome-similarity-on-cell-level)
+    * [Method 2. Seurat-based label transfer](#method-2-seurat-based-label-transfer)
+    * [Other methods](#other-methods)
   * [Now starts Part 4: more optional advanced analysis for scRNA-seq data](#now-starts-part-4-more-optional-advanced-analysis-for-scrna-seq-data)
     * [Part 4-1. Cluster connectivity analysis with PAGA](#part-4-1-cluster-connectivity-analysis-with-paga)
     * [Part 4-2. RNA velocity analysis](#part-4-2-rna-velocity-analysis)
@@ -834,7 +834,7 @@ plot3 <- FeaturePlot(seurat_ref, c("SOX2","DCX","FOXG1","EMX1","DLX2","LHX9"),
 
 We can see that the reference data set has been properly annotated, and it contains cell types representing different brain regions and neuronal subtypes.
 
-### Strategy 1-1. Transcriptome similarity on cell cluster level
+### Method 1-1. Transcriptome similarity on cell cluster level
 The first strategy is very simple. We can compare the transcriptome profile of each cell population in the query data set, to the transcriptome profiles of different cell types in the reference data set. The query cell cluster can be then referred to the cell type in the reference data set which shows the highest similarity of transcriptome profiles. To do that, we need to firstly decide two things:
 1. Based on which genes to calculate the transcriptome similarity.
 2. How to define the similarity between two transcriptome profiles.
@@ -871,7 +871,7 @@ heatmap.2(corr2ref_cl, scale="none", trace="none", key=F, keysize=0.5, margins=c
 
 From the heatmap we can already judge, based on the transcriptome similarity to the annotated cell types in the reference data, whether the annotation we made previously for this data set makes sense. Many of the clusters in the query data set, e.g. the query cell cluster that we annotated as "Dorsal telen. IP", indeed shows the highest similarity to the "Cortical IP" cell type in the reference data set.
 
-### Strategy 1-2. Transcriptome similarity on cell level
+### Method 1-2. Transcriptome similarity on cell level
 The first strategy tries to link clusters or cell types in the two data sets. While being simple, such a method also has an obvious limitation, that the clusters or cell types in the two data sets may not be defined with comparable resolution, and thus may not be comparable. This is particularly important for dynamic systems, e.g. those represent development or regeneration, where continuous cell states exist and the clustering analysis may break the continuums differently for different data sets. In that scenario, one alternative solution is thus to calculate also the transcriptome similarities to different reference cell types, but instead of doing for each query cell cluster, do it for each query cell.
 
 Similarly, we use the intersect of highly variable genes of the two data sets as transcriptome signatures. In terms of the type of correlation to use, because of the high sparseness of the measured single-cell transcriptome profile, Spearman correlation is usually better in performance. However, as mentioned above, calculating Spearman correlation requires a ranking step. Ranking the expression of thousands of genes for thousand of cells is not only time-consuming, it also results in a huge dense matrix which needs a lot of memory, and sometimes it may be even out of the R environment capacity when the cell number is tremendous. Therefore, we shouldn't rely on the basic R function ```cor``` to do the calculation. We need a more elegant way to do the ranking while keeping the matrix sparseness, and then calculate Pearson correlation given the ranked sparse matrix using specific package designed to calculate Pearson correlation for sparse matrix.
@@ -941,7 +941,7 @@ heatmap.2(corr2ref_cl, scale="none", trace="none", key=F, keysize=0.5, margins=c
 <img src="images/heatmap_transcriptome_similarity_cell_sum2clusters.png" align="centre" /><br/><br/>
 
 
-### Strategy 2. Seurat-based label transfer
+### Method 2. Seurat-based label transfer
 The above two methods are principally simple and straightforward. However, such simplicity also limits its performance. While every gene in the signature list is considered equally in those methods, those genes could have completely different power in distinguishing cell types. The projection performance would be then difficult to reach optimal if such differences on feature importances are not taken into account. Therefore, you may want to try some other more sophisticated approaches that do more than just calculating the correlations.
 
 Here we will introduce the currently most commonly used label transfer method, which is the anchor-based label transfer implemented in Seurat. Its principle is not too complicated. It firstly applies the same dimension reduction transformation used in the reference data set (e.g. PCA) to the query data. Next, it tries to identify so-call anchors between the two data sets. Each anchor is a pair of cells, one from the reference and one from the query, which are mutual nearest neighbors with each other when calculating distances based on the transformed data. Those anchors get further filtered, requiring certain similarity on the original expression space between the two cells. Afterwards, a weights matrix is constructed, defining associations between each query cell and each anchor. This weights matrix is then used to summarize labels/values of the anchor reference cell to each query cell using the weights.
@@ -974,8 +974,8 @@ heatmap.2(pred_scores_sum2cl, scale="none", trace="none", key=F, keysize=0.5, ma
 <img src="images/heatmap_anchor_prediction_sum2clusters.png" align="centre" /><br/><br/>
 
 
-### There are others
-Here we only introduce these two or three methods, but there are of course more. Some integration methods, such as CSS and Harmony mentioned above, supports query data projection to the reference data (natively supported by CSS, and [Symphony](https://github.com/immunogenomics/symphony) for Harmony-integrated reference). The limitation, though, is that the reference data would have to be processed using those methods. There are also deep-learning-based models which can be used to represent a given reference data set, and then being applied to other data sets for query. Examples include [Sfaira](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02452-6) developed by the Theis lab. Obviously, this also requires the reference data being processed with the framework. All those methods could work better than the introduced methods in some scenarios, while the two/three being introduced here don't have much limitation on analysis being done with the reference data set, and therefore would be the ones we usually try first.
+### Other methods
+Above we only introduce two (or three) methods, but there are of course more. For instance, some integration methods, such as CSS and Harmony mentioned above, supports query data projection to the reference data (natively supported by CSS, and [Symphony](https://github.com/immunogenomics/symphony) for Harmony-integrated reference). The limitation, though, is that the reference data would have to be processed using those methods. There are also deep-learning-based models which can be used to represent a given reference data set, and then being applied to other data sets for query. Examples include [Sfaira](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02452-6) developed by the Theis lab. Obviously, this also requires the reference data being processed with the framework. All those methods could work better than the introduced methods in some scenarios, while the two/three being introduced here don't have much limitation on analysis being done with the reference data set, and therefore would be the ones we usually try first.
 
 
 ## Now starts Part 4: more optional advanced analysis for scRNA-seq data

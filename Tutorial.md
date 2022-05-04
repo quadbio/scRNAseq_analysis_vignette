@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2022-03-23
+#### Updated on 2022-05-03
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -699,7 +699,7 @@ The ```RunFastMNN``` function uses a list of Seurat objects, each of which is fo
 library(SeuratWrappers)
 
 seurat_samples <- SplitObject(seurat, "orig.ident")
-seurat_mnn <- RunFastMNN(seurat_mnn)
+seurat_mnn <- RunFastMNN(seurat_samples)
 seurat[['mnn']] <- CreateDimReducObject(Embeddings(seurat_mnn, "mnn")[colnames(seurat),], key="MNN_")
 seurat <- RunUMAP(seurat, dims = 1:20, reduction = "mnn")
 seurat <- FindNeighbors(seurat, reduction = "mnn", dims = 1:20) %>%

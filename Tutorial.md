@@ -1157,6 +1157,28 @@ This generates a PNG image in the figures subfolder (figures/DS1_scvelo_stream.p
 <img src="images/scvelo_DS1_scvelo_stream.png" align="centre" /><br/><br/>
 See the nice arrows! They point out the estimated cell state transitions and one can clearly see the transition from NPC to neurons, which indicates the neuronal differentiation and maturation processes.
 
+Besides, ```scvelo``` also allows to generate pseudotimes based on the estimated RNA velocity. There are two possible velocity pseudotimes supported by ```scvelo```. One is called "velocity pseudotime" which is estimated using a similar way as the diffusion pseudotime introduced above. The difference is that when doing random walk, it is the symmetric transition matrix that is estimated based on diffusion map embedding being used in the diffusion pseudotime estimation, while it is the directional transition matrix estimated by RNA velocity being used in the velocity pseudotime estimation. The other is called "latent pseudotime" which is fully based on the velocity dynamics.
+
+```R
+scvelo$tl$velocity_pseudotime(adata_DS1)
+scvelo$tl$recover_dynamics(adata_DS1)
+scvelo$tl$recover_latent_time(adata_DS1)
+```
+<span style="font-size:0.8em">*P.S. It is required to have the full splicing dynamics being recovered to estimate the latent time (the ```recover_dynamics``` function). However, this step is very slow and has to go through every gene. One has to prepare for that.*</span>
+
+Afterwards, we can extract the estimated pseudotimes, and project them on the UMAP as feature plots for visualization and comparison.
+
+```R
+seurat_DS1$velocity_pseudotime <- adata_DS1[['obs']]$velocity_pseudotime
+seurat_DS1$latent_time <- adata_DS1[['obs']]$latent_time
+
+FeaturePlot(seurat_DS1,
+            c("velocity_pseudotime", "latent_time")) & NoAxes()
+```
+<img src="images/scvelo_DS1_pseudotimes.png" align="centre" /><br/><br/>
+
+Here it is quite obvious that the velocity pseudotime can represent the NPC-to-neuron differentiation trajectory much better than the latent time. This often happens but also not always. There are also data sets where the latent time shows better the trajectory. One needs to check and compare.
+
 <span style="font-size:0.8em">*P.S. You may have expected some interactions between ```scvelo``` and ```scanpy```, as they are developed by the same group. And you are right! For instance, in the PAGA function there is one parameter called ```use_rna_velocity```, which is False by default. However, if your anndata object contains the RNA velocity results by ```scvelo```, you can set this parameter to True, and PAGA will then run based on the directed cell graph estimated by the RNA velocity analysis.*</span>
 
 

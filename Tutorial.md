@@ -293,29 +293,34 @@ Clustering the cells gives a identity label to each cell, and we can assume that
 
 Obviously, the first method requires some prior knowledge of the system being measured. One needs to have a list of convincing markers which are well accepted by the field. Particularly for the system of the example data set (cerebral organoid), some of the markers have been listed above. A longer list (never being complete though) includes
   * NES / SOX2: NPC marker
-  * DCX: neuron marker
+  * DCX / MAP2 / MAPT: neuron marker
   * FOXG1: telencephalon marker
-  * EMX1: dorsal telencephalon (cortical) marker
-  * GLI3: cortical NPC marker
+  * EMX1 / EMX2: dorsal telencephalon (cortical) marker
   * EOMES: cortical intermediate progenitor (IP) marker
-  * NEUROD6 / SLC17A7: dorsal excitatory (cortical) neuron marker
+  * NEUROD6 / SLC17A7: dorsal telencephalic (cortical) glutamatergic neuron marker
   * BCL11B: deeper layer cortical neuron marker
   * SATB2: upper layer cortical neuron marker
   * RELN: Cajal-Retzius cell marker
   * DLX2 / DLX5: ganglionic eminence (GE) marker
   * ISL1: lateral ganglionic eminence (LGE) inhibitory neuron marker
   * NKX2-1: medial ganglionic eminence (MGE) inhibitory neuron marker
-  * NR2F2: caudal ganglionic eminence (CGE) inhibitory neuron marker
-  * RSPO3 / TCF7L2 / LHX9: diencephalon marker (for different neuron subtypes)
-  * OTX2: midbrain marker
-  * HOXB2 / HOXB5: hindbrain marker
-  * SLC17A6: non-telencephalic excitatory neuron marker
-  * SLC32A1 / GAD1 / GAD2: inhibitory neuron marker
+  * RSPO3 / TCF7L2 / LHX5 / LHX9: diencephalon marker (for different neuron subtypes)
+  * OTX2 / LMX1A / EN1: midbrain marker (for different neuron subtypes)
+  * CYP26A1: Purkinje cell (cerebellar) progenitor marker
+  * TFAP2A / CA8: Purkinje cell marker
+  * HOXB2 / HOXB5: hindbrain (medulla/pons) and spinal cord marker
+  * SLC17A6: glutamatergic neuron marker
+  * SLC32A1 / GAD1 / GAD2: GABAergic neuron marker
+  * TH: doparminergic neuron marker
+  * CHAT / ACHE: cholinergic neuron marker
   * TTR: choroid plexus marker
-  * GFAP: astrocyte marker
+  * GFAP / AQP4 / S100B: astrocyte marker
   * OLIG1: oligodendrocyte precursor cell marker
+  * MBP / SOX10: ologodendrocyte marker
+  * SOX10: neural crest derivative marker
   * AIF1: microglia marker
   * CLDN5: endothelial cell marker
+  * DCN: mesenchymal cell marker
   * MKI67: cell cycle G2M phase marker (proliferative cells)
 
 <span style="font-size:0.8em">*P.S. Be careful! Many of those genes are not only expressed in the listed cell types. For instance, many ventral telen. neurons also express BCL11B, which is a famous deeper layer cortical neuron marker. Therefore, when doing the annotation, one needs to look at combinations of markers. For instance, only if the BCL11B+ cells also express EMX1 and NEUROD6, they would be annotated as deeper layer cortical neurons.*</span>
@@ -499,19 +504,26 @@ FeaturePlot(seurat_dorsal, c("dpt","GLI3","EOMES","NEUROD6"), ncol=4)
 
 To visualize expression changes along the constructed pseudotime, a scatter plot with fitted curve is usually a straightforward way.
 ```R
+if (is(seurat_dorsal[['RNA']], 'Assay5')){
+    expr <- LayerData(seurat_dorsal, assay = "RNA", layer = "data")
+} else{
+    expr <- seurat_dorsal[['RNA']]@data
+}
+
 library(ggplot2)
-plot1 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["GLI3",]),
+plot1 <- qplot(seurat_dorsal$dpt, as.numeric(expr["GLI3",]),
                xlab="Dpt", ylab="Expression", main="GLI3") +
          geom_smooth(se = FALSE, method = "loess") + theme_bw()
-plot2 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["EOMES",]),
+plot2 <- qplot(seurat_dorsal$dpt, as.numeric(expr["EOMES",]),
                xlab="Dpt", ylab="Expression", main="EOMES") +
          geom_smooth(se = FALSE, method = "loess") + theme_bw()
-plot3 <- qplot(seurat_dorsal$dpt, as.numeric(seurat_dorsal@assays$RNA@data["NEUROD6",]),
+plot3 <- qplot(seurat_dorsal$dpt, as.numeric(expr["NEUROD6",]),
                xlab="Dpt", ylab="Expression", main="NEUROD6") +
          geom_smooth(se = FALSE, method = "loess") + theme_bw()
 plot1 + plot2 + plot3
 ```
 <img src="images/dpt_scatterplots_dorsal.png" align="centre" /><br/><br/>
+<span style="font-size:0.8em">*P.S. The recent Seurat upgrade (v5) introduces a new and more flexible data structure for assay data (Assay5 class), which is fundamentally different from the previous Array class. This is why in the above codes we have to firstly check whether the RNA assay is stored as an Assay5 object or not.*</span>
 
 ### Step 11. Save the result
 These are basically everything in the Part 1 of this tutorial, covering most of the basic analysis one can do to a single scRNA-seq data set. At the end of the analysis, we of course wants to save the result, probably the Seurat object we've played around with for a while, so that next time we don't need to rerun all the analysis again. The way to save the Seurat object is the same as saving any other R object. One can either use ```saveRDS```/```readRDS``` to save/load every Seurat object separately,

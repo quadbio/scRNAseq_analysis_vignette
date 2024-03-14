@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2022-05-03
+#### Updated on 2024-03-14
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)

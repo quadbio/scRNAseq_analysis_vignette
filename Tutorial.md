@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2024-03-14
+#### Updated on 2024-04-18
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -37,8 +37,10 @@
     * [Other methods, and more to say](#other-methods-and-more-to-say)
   * [Now starts Part 4: more optional advanced analysis for scRNA-seq data](#now-starts-part-4-more-optional-advanced-analysis-for-scrna-seq-data)
     * [Part 4-1. Cluster connectivity analysis with PAGA](#part-4-1-cluster-connectivity-analysis-with-paga)
-    * [Part 4-2. RNA velocity analysis](#part-4-2-rna-velocity-analysis)
-    * [Part 4-3. Cell communication analysis](#part-4-3-cell-communication-analysis)
+    * [Part 4-2. Pseudotime reconstruction without subseting into an unbranched trajectory](#part-4-2-pseudotime-reconstruction-without-subseting-into-an-unbranched-trajectory)
+    * [Part 4-3. RNA velocity analysis](#part-4-3-rna-velocity-analysis)
+    * [Part 4-4. Trajectory analysis with CellRank](#part-4-4-trajectory-analysis-with-cellrank)
+    * [Part 4-5. Cell communication analysis](#part-4-5-cell-communication-analysis)
 
 
 ## Introduction
@@ -293,10 +295,11 @@ Clustering the cells gives a identity label to each cell, and we can assume that
 
 Obviously, the first method requires some prior knowledge of the system being measured. One needs to have a list of convincing markers which are well accepted by the field. Particularly for the system of the example data set (cerebral organoid), some of the markers have been listed above. A longer list (never being complete though) includes
   * NES / SOX2: NPC marker
+  * NHLH1: neuroblast (new-born neuron) marker
   * DCX / MAP2 / MAPT: neuron marker
   * FOXG1: telencephalon marker
   * EMX1 / EMX2: dorsal telencephalon (cortical) marker
-  * EOMES: cortical intermediate progenitor (IP) marker
+  * EOMES: cortical intermediate progenitor (IP, proliferating neuroblast) marker
   * NEUROD6 / SLC17A7: dorsal telencephalic (cortical) glutamatergic neuron marker
   * BCL11B: deeper layer cortical neuron marker
   * SATB2: upper layer cortical neuron marker
@@ -1076,8 +1079,60 @@ It is not perfect, but one can see that the summarized graph on the cluster leve
 
 <span style="font-size:0.8em">*P.S. When running with reticulate, it is possible to encounter errors like ```ImportError: /lib64/libstdc++.so.6: version `CXXABI_1.3.8' not found```. That is due to the C version conflict between the one in the system that being used in R, and the one used in the conda environment that reticulate thought to be used. In that case, running PAGA in Python directly would be the easiest solution.*</span>
 
+### Part 4-2. Pseudotime reconstruction without subseting into an unbranched trajectory
+In a previous [section](#step-10-pseudotemporal-cell-ordering) we have shown how to reconstruct pseudotimes for cells at an unbranched trajectory using diffusion map. However, when the system is complex and includes lots of different terminal, as well as initial/intermediate states which are shared by trajectories of multiple terminal states, finding cells representing a single unbranched trajectory becomes a very difficult task, and by itself becomes a challenge that we would have to develop or apply specific tools to solve. Interestingly, many of those tools rely on random walk across the neighborhood graph of cells and strongly recommend to include pseudotimes as one input. Obviously, this makes the pseudotime analysis and trajectory analysis into a loop. There are multiple approaches to solve this issue. For example, we can use other analysis than the transcriptome similarity based pseudotimes to provide clues about cell state progression, and one of the most pronounced methods in this category is the RNA velocity analysis which will be introduced in the next section. Alternatively, we can try to perform pseudotime analysis without subseting into a single unbranched trajectory.
 
-### Part 4-2. RNA velocity analysis
+For example, we can directly apply diffusion map and diffusion pseudotime (DPT), which have been introduced earlier, to the complete DS1 data rather than just the cortical portion.
+```R
+library(Seurat)
+library(destiny)
+
+seurat_DS1 <- readRDS("DS1/seurat_obj_all.rds")
+dm <- DiffusionMap(Embeddings(seurat_DS1, "pca")[,1:20])
+dpt <- DPT(dm)
+seurat_DS1$dpt <- rank(dpt$dpt)
+
+FeaturePlot(seurat_DS1, c("dpt","SOX2","NHLH1","DCX"), ncol=4)
+```
+<img src="images/dpt_featureplots_DS1.png" align="centre" /><br/><br/>
+It doesn't look bad! Although one obvious issue is that the reconstructed pseudotimes seem to be flipped, with the SOX2+ progenitors having higher pseudotime than the DCX+ neurons. The easy way to fix it of course is to manually flip it.
+```R
+seurat_DS1$dpt <- max(seurat_DS1$dpt) - seurat_DS1$dpt
+FeaturePlot(seurat_DS1, c("dpt","SOX2","NHLH1","DCX"), ncol=4)
+```
+<img src="images/dpt_featureplots_DS1_2.png" align="centre" /><br/><br/>
+Alternatively, we can specify the 'tip' cell for the random walk to start. Let's randomly pick three progenitor cells as the tips, and then run DPT again.
+```R
+set.seed(12345)
+idx <- sample(which(seurat@active.ident %in% c('Dorsal telen. NPC',
+                                               'G2M dorsal telen. NPC',
+                                               'Dien. and midbrain NPC',
+                                               'G2M Dien. and midbrain NPC')),3)
+dpt2 <- DPT(dm, tips=idx)
+seurat_DS1$dpt2 <- rank(dpt2$dpt)
+
+FeaturePlot(seurat_DS1, c("dpt","dpt2"), ncol=2)
+```
+<img src="images/dpt_featureplots_DS1_3.png" align="centre" /><br/><br/>
+The problem of this approach is that as the NPC clusters actually represent a range of cell states along the progenitor to neuron differentiation, the randomly picked tip cells might not be at the actual beginning of the trajectory but somewhere in the middle. To further solve this issue, we can try to firstly use the `random_root` function in the `destiny` package explicitly, which firstly randomly pick a cell and then identify the cell with the largest DPT from the selected cell, to identify tip candidates (this is also how the default `DPT` function works). Next, we can subset the candidates with the cells annotated as progenitors, and use the intersect as the tip cells for DPT.
+```R
+tips_cand <- sapply(1:100, function(i){ random_root(dm) })
+idx_NPC <- which(seurat@active.ident %in% c('Dorsal telen. NPC',
+                                            'G2M dorsal telen. NPC',
+                                            'Dien. and midbrain NPC',
+                                            'G2M Dien. and midbrain NPC'))
+tips_cand <- as.numeric(names(which.max(table(tips_cand[tips_cand %in% idx_NPC]))))
+dpt3 <- DPT(dm, tips=tips_cand)
+seurat_DS1$dpt3 <- rank(dpt3$dpt)
+
+FeaturePlot(seurat_DS1, c("dpt","dpt2", "dpt3"), ncol=3)
+```
+<img src="images/dpt_featureplots_DS1_4.png" align="centre" /><br/><br/>
+
+And of course, there are a lot of other approaches and algorithms developed in the past years to reconstruct pseudotimes. In R, the famous options besides the diffusion pseudotime used in the above examples include [Monocle](https://cole-trapnell-lab.github.io/monocle3/) developed by the Trapnell lab, [Slingshot](https://github.com/kstreet13/slingshot) by the Dudoit lab, and [URD](https://github.com/farrellja/URD) by the Regev lab and Schier lab. There are also more options available in Python, which can also been used in R by using `reticulate`, similar to how we do the PAGA analysis. One of those Python options is [Palantir](https://github.com/dpeerlab/Palantir) developed by the Pe'er lab. Besides, diffusion pseudotime (implemented in Scanpy) and Slingshot ([pyslingshot](https://github.com/mossjacob/pyslingshot)) are also available in Python. Many of those methods not only provide pseudotime reconstruction, but also trajectory analysis inspired by the calculated pseudotime.
+
+
+### Part 4-3. RNA velocity analysis
 RNA velocity analysis was firstly proposed by La Manno et al. in Sten Linnarsson lab in Karolinska institute and Peter Kharchenko lab in Harvard Medical School in 2018. It is an analysis based on a simple model of transcriptional dynamics. In this model, the transcript number of a certain gene that one can measure in a cell is determined by several processes: transcription, splicing and degradation. Considering that the current mature RNAs represent the current state of the cell, such a state may stay steady if the dynamics of RNA degradation and transcription+splicing reach equilibrium, or it may change over time. Assuming the cell state is not steady, the time lag between transcription and RNA processing (e.g. splicing) make it possible to infer how the cell state is going to change, if the degradation rates of different transcripts are known. Based on this concept, La Manno et al. developed the first algorithm, to use the exonic reads as the proxy of mature RNA transcripts, and the intronic reads as the proxy of the immature RNA transcripts to be spliced. The details of the method can be found in the published [paper](https://www.nature.com/articles/s41586-018-0414-6). The R implementation of this method is available in the [```velocity.R``` package](https://github.com/velocyto-team/velocyto.R).
 
 Based on their work, Bergen et al. in Alexander Wolf lab and Fabian Theis lab in Helmholtz Center Munich further generalized the transcriptional dynamics model estimation procedure, so that it no longer relies on the assumption of steady cell states. The description of the method can be found in the [paper](https://www.nature.com/articles/s41587-020-0591-3). They also developed the python package [```scvelo```](https://scvelo.readthedocs.io/index.html), which is not only methodologically more general, but also computationally more efficient.
@@ -1119,8 +1174,9 @@ loom$close_all()
 Following is the way to create the h5ad file:
 ```R
 library(anndata)
+shared_genes <- intersect(rownames(mats$exon),rownames(mats$intron))
 adata <- AnnData(X = t(mats$exon[shared_genes,]),
-                 obs = seurat_DS1@meta.data,
+                 obs = data.frame(seurat_DS1@meta.data, celltype=seurat_DS1@active.ident),
                  var = NULL,
                  layers = list(spliced = t(mats$exon[shared_genes,]),
                                unspliced = t(mats$intron[shared_genes,])),
@@ -1193,8 +1249,95 @@ Here it is quite obvious that the velocity pseudotime can represent the NPC-to-n
 
 <span style="font-size:0.8em">*P.S. You may have expected some interactions between ```scvelo``` and ```scanpy```, as they are developed by the same group. And you are right! For instance, in the PAGA function there is one parameter called ```use_rna_velocity```, which is False by default. However, if your anndata object contains the RNA velocity results by ```scvelo```, you can set this parameter to True, and PAGA will then run based on the directed cell graph estimated by the RNA velocity analysis.*</span>
 
+Last, let's again save the processed AnnData and the Seurat object with the velocity-based pseudotime information
+```R
+adata_DS1$write_h5ad('DS1/anndata_obj_scvelo.h5ad')
+saveRDS(seurat_DS1, file='DS1/seurat_obj_all.rds')
+```
 
-### Part 4-3. Cell communication analysis
+
+### Part 4-4. Trajectory analysis with CellRank
+The pseudotime analysis and RNA velocity analysis give us very rich information about cell state dynamics on the single cell level. And when we have a complex and dynamic system like developing primary tissues or stem cell models like organoids, we would definitely want to use those information to characterize how cells move from the initial stem cell state through different intermediate cell states and eventrally reach different terminal cell types. `PAGA`, which has been introduced earlier, is somehow on this line, but it is performed on the cluster level and somehow lack of flexibility of which information to use (either similarity-based or velocity-based connectivities). Other trajectory analysis tools such as Monocle, Slingshot and URD can estimate how the cell state trajectories branch, and assign every cell to one partition of the branched trajectory. However, those methods mostly rely on only the similarity-based pseudotime and it is not very easy to hack them in order to use also the RNA velocity information. Considering limitations of those approaches, people in the field are therefore eagerly looking for a method which can perform analysis on the single-cell level and have the flexibility to consider different information, including transcriptome similarity, pseudotime, RNA velocity, as well as other meta information (e.g. time points and metabolic labeling) and analysis (e.g. [CytoTRACE](https://www.science.org/doi/10.1126/science.aax0249)) which can inform the system dynamics, in a customizable manner. Further considering the growing amount of single-cell data to analyze, the scalability of a computational method is also getting more and more important. [CellRank](https://cellrank.readthedocs.io/en/latest/index.html), a Python-based framework to study cellular dynamics based on Markov state modeling of single-cell data, provides a great balance and functionalities on those topics.
+
+Similar to other Python-based tools we have introduced above, it is possible to import CellRank via reticulate in R. The standard procedure of CellRank is also not very complicated. There are comprehensive [tutorials](https://cellrank.readthedocs.io/en/latest/notebooks/tutorials/index.html) in the CellRank webpage that guide you through the whole process.
+
+Here in our example, we can start with the H5AD file we saved after the scVelo analysis, after making sure that CellRank is successfully installed (with `py_install('cellrank', pip=TRUE)` in R). 
+```R
+library(reticulate)
+sc <- import('scanpy')
+cr <- import('cellrank')
+adata_DS1 <- sc$read_h5ad('DS1_scvelo.h5ad')
+```
+
+Next, we can initialize different kernels based on pseudotime, transcriptomic similarity (PCA), as well as scVelo results. In CellRank, kernels are used to compute cell-cell transition matrices, which are later analyzed. Here with what we have we can construct three different kernels: the pseudotime kernel which can calculate transition probabilities between cells based on the provided pseudotime, for example, the diffusion pseudotime we reconstructed earlier; the connectivity kernel which do the calculation based on transcriptomic similarities between cells (usually estimated as Euclidean distance in the dimensionality reduction space like PCA or any integrated latent representations); and the velocity kernel which calculates the transition probabilities based on the RNA velocity analysis we did above.
+```R
+pk <- cr$kernels$PseudotimeKernel(adata_DS1, time_key="dpt3")$compute_transition_matrix()
+ck <- cr$kernels$ConnectivityKernel(adata_DS1)$compute_transition_matrix()
+vk <- cr$kernels$VelocityKernel(adata_DS1)$compute_transition_matrix()
+```
+
+We can further create combined kernels based those kernels with different customized weights. Unfortunately from this step it is a bit problematic to run the code in R. Luckily, `reticulate` provides the option (`repl_python`) to open a Python interactive environment directly in R, from where we can still access objects we make in the R environment (via `r.object`). Also, any object we create in that Python environment can also be accessed later when we are back to the R (via `py$object`). Let's first open the Python interactive session.
+```R
+repl_python()
+```
+Now we can continue with coding in the opened Python session.
+```Python
+import cellrank as cr
+import numpy as np
+
+combined_kernel = 0.5 * r.vk + 0.3 * r.pk + 0.2 * r.ck
+```
+Now we have the combined kernel created. It is a combination of the three kernels, with the velocity kernel contributing to 50% of the final kernel, and the pseudotime kernel and connectivity kernel contributing 30% and 20% respectively. Next we can try to infer terminal states based on the combined kernel.
+```Python
+g = cr.estimators.GPCCA(combined_kernel)
+g.fit(n_states=15, cluster_key="celltype")
+g.predict_terminal_states(method="top_n", n_states=6)
+g.plot_macrostates(which="terminal")
+```
+<img src="images/cellrank_inferred_terminal.png" align="centre" /><br/><br/>
+So actually it doesn't look too bad! Different types of neurons are successfully inferred as terminal states. On the other hand, the result is also not perfect, for example, there is a group of NPCs considered as potential terminal states. Of course, one should in principle look into that population and see whether it actually represents any unknown terminal cell states in the system, which could lead to exciting findings. But let's assume this is an artifact, then we can also choose to manually set the terminal states as the combined randomly subsets (30 cells in the following example) of different annotated neuronal cell types.
+
+```Python
+g = cr.estimators.GPCCA(combined_kernel)
+g.set_terminal_states({"Midbrain-hindbrain boundary neuron": r.adata_DS1[r.adata_DS1.obs['celltype'] == "Midbrain-hindbrain boundary neuron"].obs_names[:30],
+                       "Ventral telen. neuron": r.adata_DS1[r.adata_DS1.obs['celltype'] == "Ventral telen. neuron"].obs_names[:30],
+                       "Dorsal telen. neuron": r.adata_DS1[r.adata_DS1.obs['celltype'] == "Dorsal telen. neuron"].obs_names[:30],
+                       "Dien. and midbrain excitatory neuron": r.adata_DS1[r.adata_DS1.obs['celltype'] == "Dien. and midbrain excitatory neuron"].obs_names[:30],
+                       "Dien. and midbrain inhibitory neuron": r.adata_DS1[r.adata_DS1.obs['celltype'] == "Dien. and midbrain inhibitory neuron"].obs_names[:30]})
+g.plot_macrostates(which="terminal")
+```
+<img src="images/cellrank_inferred_terminal_2.png" align="centre" /><br/><br/>
+<span style="font-size:0.8em">*P.S. It is also possible to do even more flexible terminal state specification. For example, one can firstly run the data-driven terminal state prediction, and then extract the inferred states via `g.terminal_states` and manipulate the returned Series object (for example, to exclude some labels that are not supposed to be terminal states), and then assign the manipulated result back to the estimator using the `g.set_terminal_states` function.*</span>
+
+Now we can start to calculate for every cell the fate probabilities of how likely it will in the end turn into each of the terminal states.
+```Python
+g.compute_fate_probabilities()
+g.plot_fate_probabilities(legend_loc="right", basis='umap', same_plot=False)
+```
+<img src="images/cellrank_prob.png" align="centre" /><br/><br/>
+We can then extract the fate probability estimates, save them into a data frame.
+```Python
+import pandas as pd
+prob = pd.DataFrame(g.fate_probabilities).set_index(g.terminal_states.index).set_axis(g.terminal_states.cat.categories, axis=1)
+```
+And now, we can quit the interactive Python session with `exit` to go back to R, and save the fate probability data frame into the Seurat object
+```Python
+exit
+```
+```R
+library(Seurat)
+seurat_DS1 <- readRDS(file='DS1/seurat_obj_all.rds')
+seurat_DS1@meta.data[,colnames(py$prob)] <- py$prob[colnames(seurat_DS1),]
+
+FeaturePlot(seurat_DS1, colnames(py$prob), ncol=5)
+```
+<img src="images/cellrank_prob_seurat.png" align="centre" /><br/><br/>
+With the fate probabilities estimated on the cell level, one can potentially do more analysis, for example, to identify potential driver genes which correlate to changes of probability into each cell fate. One can try to place the cells into different part of the branched differentiation trajectory based on the estimated probability. For example, in our previous papers studying cell fate specification in [brain organoids (Fleck, et cl. 2023)](https://www.nature.com/articles/s41586-022-05279-8) and [retinal organoids (Wahle, et al. 2023)](https://www.nature.com/articles/s41587-023-01747-2), we summarized the single-cell level fate probabilities into meta-clusters and visualize how different cell types in the system are gradually specficied.
+
+
+
+
+### Part 4-5. Cell communication analysis
 The above analysis focus mostly on cell states of single cells. In biology, what can be equally or even more important is communications among different cells. Unfortunately, such communications cannot be directly measured by scRNA-seq data. However, as the communications usually rely on receptor proteins and ligand molecules that specifically bind to its corresponding receptor, given a list of the paired ligand and receptor, it is possible to infer the existence of such communications, assuming that cells/cell types that communicate with each other co-express the interacting ligands and receptors. This is the principle of most of the existed tools to investigate putative cell-cell communications. Among those tools, [CellPhoneDB](https://github.com/Teichlab/cellphonedb), developed by Sarah Teichmann's lab in Wellcome Sanger Institute, is one of the most commonly used one. More details of the method can also been found in the [paper](https://www.nature.com/articles/s41596-020-0292-x).
 
 In this part of the tutorial, we will use DS4 as the example to show how to infer communications between cell types using scRNA-seq data and cellphonedb. Just to mention, DS4 is not about cerebral organoid, but a subset of developing human duodenum scRNA-seq data presented in this [paper](https://www.biorxiv.org/content/10.1101/2020.07.24.219147v1). It is suggested that the interactions between epithelial and mesenchymal populations are critical for gut development. Therefore, it would be interesting to see whether we can infer such interaction from the scRNA-seq data and identify ligand-receptor pairs contributing to it.

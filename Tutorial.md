@@ -1,6 +1,6 @@
 # Tutorial of single-cell RNA-seq data analysis in R
 #### Compiled by Zhisong He, Barbara Treutlein
-#### Updated on 2024-04-18
+#### Updated on 2025-03-05
 ### Table of Content
   * [Introduction](#introduction)
   * [Preparation](#preparation)
@@ -68,6 +68,17 @@ This imports your installed Seurat package into your current R session. No error
 install.packages("Seurat")
 library(Seurat)
 ```
+
+**IMPORTANT!!** The latest Seurat (version 5) introduces a new data structure called `Assay5`, as a more flexible replacement of the older `Assay` object introduced from Seurat v3. Both objects are used to store a single-modal measurement of cells. The main difference between the two is that an `Assay` object use a single $n \times N$ matrix($n$ for the number of genes and $N$ for the number of cells) to represent the counts/expression matrix of a scRNA-seq data set; while in an `Assay5` object, the matrix can be stored as multiple sub-matrices with another data frame to specify from which matrix to look for certain genes. The pros of the new `Assay5` object is that it bypasses a critical limitation of R, that a sparse matrix can include no more than 4294967295 non-zero items. This issue makes it impossible to use R for atlas-level (e.g. >1 million cells) scRNA-seq data analysis. The cons is that it complicates the data structure and makes the non-Seurat analysis much easier to fail due to the technical incompatibility. To keep everything simple, we will use the following code to tell `Seurat` to use `Assay` instead of `Assay5` as the default choice when creating the Seurat object.
+```R
+options(Seurat.object.assay.version = "v3")
+```
+
+If you want to reverse this opperation, do the following
+```R
+options(Seurat.object.assay.version = "v5")
+```
+
 ### Step 1. Create a Seurat object
 Seurat implements a new data type which is named 'Seurat'. It allows Seurat to store all the steps and results along the whole analysis. Therefore, the first step is to read in the data and create a Seurat object. Seurat has an easy solution for data generated using the 10x Genomics platform.
 ```R
